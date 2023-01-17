@@ -48,7 +48,9 @@ jobs:
           make install-dev
 
       - name: Setup Sparv
-        run: mkdir -pv ${SPARV_DATADIR}
+        run: |
+          mkdir -pv ${SPARV_DATADIR}
+          make setup-sparv
 
       - name: ${{ matrix.task.name }}
         run: ${{ matrix.task.run }}

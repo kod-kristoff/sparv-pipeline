@@ -42,7 +42,7 @@ jobs:
         id: cached-poetry-dependencies
         uses: actions/cache@v3
         with:
-          path: .venv
+          path: venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}-${{ hashFiles('**/setup.py') }}-${{ hashFiles('.github/workflows/coverage.yml') }}
 
       #----------------------------------------------

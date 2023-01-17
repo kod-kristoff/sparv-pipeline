@@ -58,7 +58,7 @@ jobs:
         run: make setup-sparv-from-env
 
       - name: Run tests marked with 'noexternal' for coverage report
-        run: make all-noexternal-w-coverage
+        run: make run-noexternal-tests-w-coverage
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

@@ -37,7 +37,7 @@ PROJECT := sparv
 
 ifeq (${VIRTUAL_ENV},)
   VENV_NAME = .venv
-  INVENV = source ${VENV_NAME}/bin/activate;
+  INVENV = export VIRTUAL_ENV="${VENV_NAME}"; export PATH="${VENV_BIN}:${PATH}"; unset PYTHON_HOME;
 else
   VENV_NAME = ${VIRTUAL_ENV}
   INVENV =

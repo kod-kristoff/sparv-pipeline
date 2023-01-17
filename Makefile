@@ -47,6 +47,7 @@ ${info Platform: ${PLATFORM}}
 
 setup-venv:
 	python3 -m venv ${VENV_NAME}
+	${INVENV} pip install wheel
 
 dev: install-dev
 install-dev:

@@ -8,7 +8,8 @@ on:
     branches:
       - "*"
 
-
+env:
+  SPARV_DATADIR: .config/sparv
 
 jobs:
   coverage:
@@ -53,15 +54,11 @@ jobs:
           make setup-venv
           make install-dev
 
-      - name: Setup Sparv
-        run: make setup-sparv
-        env:
-          SPARV_DATADIR: .config/sparv
+      - name: Setup Sparv DataDir
+        run: mkdir -pv ${SPARV_DATADIR}
 
       - name: Run tests marked with 'noexternal' for coverage report
         run: make all-noexternal-w-coverage
-        env:
-          SPARV_DATADIR: .config/sparv
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

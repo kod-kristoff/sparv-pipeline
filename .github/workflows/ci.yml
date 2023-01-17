@@ -2,6 +2,9 @@ name: CI
 
 on: [push, pull_request]
 
+env:
+  SPARV_DATADIR: .config/sparv
+
 jobs:
   checks:
     name: ${{ matrix.task.name }} py-${{ matrix.python-version }} on ${{ matrix.os }}
@@ -45,9 +48,7 @@ jobs:
           make install-dev
 
       - name: Setup Sparv
-        run: make setup-sparv
-        env:
-          SPARV_DATADIR: .config/sparv
+        run: mkdir -pv ${SPARV_DATADIR}
 
       - name: ${{ matrix.task.name }}
         run: ${{ matrix.task.run }}

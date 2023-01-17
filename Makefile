@@ -36,8 +36,8 @@ PLATFORM := ${shell uname -o}
 PROJECT := sparv
 
 ifeq (${VIRTUAL_ENV},)
-  VENV_NAME = .venv
-  INVENV = export VIRTUAL_ENV="${VENV_NAME}"; export PATH="${VENV_BIN}:${PATH}"; unset PYTHON_HOME;
+  VENV_NAME = venv
+  INVENV = ${VENV_NAME}/bin/
 else
   VENV_NAME = ${VIRTUAL_ENV}
   INVENV =
@@ -47,31 +47,34 @@ ${info Platform: ${PLATFORM}}
 
 setup-venv:
 	python3 -m venv ${VENV_NAME}
-	${INVENV} pip install wheel
+	${INVENV}pip install wheel
 
 dev: install-dev
 install-dev:
-	${INVENV} pip install -e .[dev]
+	${INVENV}pip install -e .[dev]
 
 setup-sparv:
-	${INVENV} sparv setup
+	${INVENV}sparv setup
+
+setup-sparv-from-env:
+	${INVENV}sparv setup --dir ${SPARV_DATADIR}
 
 .PHONY: test
 test: run-all-tests
 .PHONY: run-all-tests
 run-all-tests:
-	${INVENV} pytest
+	${INVENV}pytest
 
 .PHONY: noexternal-tests
 noexternal-tests:
-	${INVENV} pytest -m noexternal
+	${INVENV}pytest -m noexternal
 
 .PHONY: run-all-tests-w-coverage
 run-all-tests-w-coverage:
-	${INVENV} pytest -vv --cov=${PROJECT}  --cov-report=xml tests
+	${INVENV}pytest -vv --cov=${PROJECT}  --cov-report=xml tests
 
 .PHONY: run-all-tests-w-coverage
 run-noexternal-tests-w-coverage:
-	${INVENV} pytest -vv --cov=${PROJECT}  --cov-report=xml -m noexternal
+	${INVENV}pytest -vv --cov=${PROJECT}  --cov-report=xml -m noexternal
 
 

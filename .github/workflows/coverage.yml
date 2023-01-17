@@ -55,9 +55,7 @@ jobs:
           make install-dev
 
       - name: Setup Sparv DataDir
-        run: |
-          mkdir -pv ${SPARV_DATADIR}
-          make setup-sparv
+        run: make setup-sparv-from-env
 
       - name: Run tests marked with 'noexternal' for coverage report
         run: make all-noexternal-w-coverage

@@ -47,7 +47,7 @@ jobs:
       - name: Setup Sparv
         run: |
           sparv setup -d .
-          tree .config/sparv
+          tree .
           # mkdir -pv ${SPARV_DATADIR}
           # make setup-sparv-from-env
 

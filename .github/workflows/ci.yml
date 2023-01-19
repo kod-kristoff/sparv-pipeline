@@ -20,7 +20,13 @@ jobs:
             run: pytest -m noexternal
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: nschloe/action-cached-lfs-checkout@v1
+        # Use these to explicitly include/exclude files:
+        # with:
+        #   include: "*"
+        #   exclude: ""
+
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4

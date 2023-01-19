@@ -53,5 +53,5 @@ jobs:
 
       - name: ${{ matrix.task.name }}
         run: ${{ matrix.task.run }}
-        env:
-          SPARV_DATADIR: .config/sparv
+        # env:
+        #   SPARV_DATADIR: .config/sparv

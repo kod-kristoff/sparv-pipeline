@@ -45,7 +45,9 @@ jobs:
         run: pip install -e.[dev]
 
       - name: Setup Sparv
-        run: sparv setup -d .config/sparv
+        run: |
+          sparv setup -d .config/sparv
+          tree .config/sparv
           # mkdir -pv ${SPARV_DATADIR}
           # make setup-sparv-from-env
 

@@ -48,7 +48,9 @@ jobs:
       #----------------------------------------------
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: make dev
+        run: |
+          make setup-venv
+          make dev
 
       - name: Setup Sparv
         run: |

@@ -35,3 +35,6 @@ MANIFEST*
 # Unit test / coverage reports
 .pytest_cache/
 logs/
+.coverage
+coverage.xml
+

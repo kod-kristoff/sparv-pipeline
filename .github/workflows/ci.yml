@@ -18,8 +18,8 @@ jobs:
         task:
           - name: Run tests
             run: make noexternal-tests
+            allow_failure: false
         include:
-          - task.allow_failure: false
           - python-version: "3.7"
             task.allow_failure: true
 

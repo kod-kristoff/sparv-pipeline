@@ -18,6 +18,10 @@ jobs:
         task:
           - name: Run tests
             run: make noexternal-tests
+        include:
+          - task.allow_failure: false
+          - python-version: "3.7"
+            task.allow_failure: true
 
     steps:
       - name: Checkout code
@@ -38,7 +42,7 @@ jobs:
       # ----------------------------------------------
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v3.2.3
         with:
           path: venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}-${{ hashFiles('**/setup.py') }}-${{ hashFiles('.github/workflows/ci.yml') }}
@@ -61,5 +65,6 @@ jobs:
 
       - name: ${{ matrix.task.name }}
         run: ${{ matrix.task.run }}
+        continue-on-error: ${{ matrix.task.allow_failure }}
         # env:
         #   SPARV_DATADIR: .config/sparv

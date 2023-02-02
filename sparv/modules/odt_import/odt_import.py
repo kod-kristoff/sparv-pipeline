@@ -45,7 +45,7 @@ def parse(source_file: SourceFilename = SourceFilename(),
     Text(source_file).write(text)
 
     # Make up a text annotation surrounding the whole file
-    text_annotation = "{}.text".format(prefix) if prefix else "text"
+    text_annotation = f"{prefix}.text" if prefix else "text"
     Output(text_annotation, source_file=source_file).write([(0, len(text))])
     SourceStructure(source_file).write([text_annotation])
 
@@ -92,10 +92,8 @@ class OdtParser():
                     buffer += " " * (int(child.get(self.ns("text:c"))) - 1)
                 if child.tail is not None:
                     buffer += child.tail
-            # Add placeholders for images
             elif child.tag == self.ns("drawing:image"):
-                image = child.get(self.ns("xmlns:href"))
-                if image:
+                if image := child.get(self.ns("xmlns:href")):
                     buffer += f"----{image}----"
             else:
                 buffer += self.get_text(child)

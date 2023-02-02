@@ -101,7 +101,7 @@ EAGLES_DICT = {
 def _EAGLES_convert(pos):
     """Convert EAGLES tags to UPOS."""
     if pos[0] in "NVC":
-        return EAGLES_DICT.get(pos[0:2], FALLBACK)
+        return EAGLES_DICT.get(pos[:2], FALLBACK)
     else:
         return EAGLES_DICT.get(pos[0], FALLBACK)
 
@@ -133,6 +133,14 @@ def _rus_FreeLing_convert(pos):
 
 def _eng_Penn_convert(pos):
     """Convert from Penn Treebank tagset (with FreeLing modifications)."""
+    if pos in ["NN", "NNS"]:
+        return "NOUN"
+    if pos.startswith("N"):
+        return "PROPN"
+    if pos == "FW":  # Foreign word in Penn Treebank tagset
+        return "X"
+    if pos.startswith("F"):
+        return "PUNCT"
     # https://freeling-user-manual.readthedocs.io/en/latest/tagsets/tagset-en/
     # https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html
     pos_dict = {
@@ -171,17 +179,7 @@ def _eng_Penn_convert(pos):
         "LS": "X",
         "SYM": "SYM"
     }
-    if pos in ["NN", "NNS"]:
-        return "NOUN"
-    if pos.startswith("N"):
-        return "PROPN"
-    if pos == "FW":  # Foreign word in Penn Treebank tagset
-        return "X"
-    if pos.startswith("F"):
-        return "PUNCT"
-    if pos.startswith("Z"):
-        return "NUM"
-    return pos_dict.get(pos, FALLBACK)
+    return "NUM" if pos.startswith("Z") else pos_dict.get(pos, FALLBACK)
 
 
 ################################################################################
@@ -211,11 +209,8 @@ def _bul_BulTreeBank_convert(pos):
         "I": "INTJ"
     }
     if pos[0] in ["N", "V", "C"]:
-        return pos_dict.get(pos[0:2], FALLBACK)
-    if pos.startswith("PT"):
-        return "PUNCT"
-    else:
-        return pos_dict.get(pos[0], FALLBACK)
+        return pos_dict.get(pos[:2], FALLBACK)
+    return "PUNCT" if pos.startswith("PT") else pos_dict.get(pos[0], FALLBACK)
 
 
 def _est_TreeTagger_convert(pos):
@@ -237,13 +232,12 @@ def _est_TreeTagger_convert(pos):
         "Z": "PUNCT",
         "T": "X"  # foreign
     }
-    if "." in pos:
-        pos = pos.split(".")[0]
-        if pos == "J":
-            return pos_dict.get(pos, FALLBACK)
-        return pos_dict.get(pos.split(".")[0])
-    else:
+    if "." not in pos:
         return pos_dict.get(pos, FALLBACK)
+    pos = pos.split(".")[0]
+    if pos == "J":
+        return pos_dict.get(pos, FALLBACK)
+    return pos_dict.get(pos.split(".")[0])
 
 
 def _fin_FinnTreeBank_convert(pos):
@@ -275,21 +269,6 @@ def _fin_FinnTreeBank_convert(pos):
 
 
 def _nld_TreeTagger_convert(pos):
-    pos_dict = {
-        # http://www.cis.uni-muenchen.de/~schmid/tools/TreeTagger/data/dutch-tagset.txt
-        "adj": "ADJ",
-        "adv": "ADV",
-        "con": "CONJ",
-        "det": "DET",
-        "int": "INTJ",
-        "nou": "NOUN",
-        "num": "NUM",
-        "par": "PART",  # particle "te"
-        "pre": "ADP",
-        "pro": "PRON",
-        "pun": "PUNCT",
-        "ver": "VERB"
-    }
     if len(pos) == 2 and pos.startswith("$."):
         return "PUNCT"
     elif pos == "pronadv":
@@ -297,7 +276,22 @@ def _nld_TreeTagger_convert(pos):
     elif pos == "det__art":
         return "DET"
     else:
-        return pos_dict.get(pos[0:3], FALLBACK)
+        pos_dict = {
+            # http://www.cis.uni-muenchen.de/~schmid/tools/TreeTagger/data/dutch-tagset.txt
+            "adj": "ADJ",
+            "adv": "ADV",
+            "con": "CONJ",
+            "det": "DET",
+            "int": "INTJ",
+            "nou": "NOUN",
+            "num": "NUM",
+            "par": "PART",  # particle "te"
+            "pre": "ADP",
+            "pro": "PRON",
+            "pun": "PUNCT",
+            "ver": "VERB"
+        }
+        return pos_dict.get(pos[:3], FALLBACK)
 
 
 def _lat_TreeTagger_convert(pos):
@@ -404,7 +398,7 @@ def _ron_MULTEXT_convert(pos):
         "X": "X"
     }
     if pos[0] in ["N", "V", "C", "S"]:
-        return pos_dict.get(pos[0:2], FALLBACK)
+        return pos_dict.get(pos[:2], FALLBACK)
     else:
         return pos_dict.get(pos[0], FALLBACK)
 
@@ -525,10 +519,7 @@ def _fra_TreeTagger_convert(pos):
         "SYM": "SYM",
         "VER": "VERB"
     }
-    if pos == "DET:POS":
-        return "PRON"
-    else:
-        return pos_dict.get(pos[:3], "X")
+    return "PRON" if pos == "DET:POS" else pos_dict.get(pos[:3], "X")
 
 
 def _spa_TreeTagger_convert(pos):
@@ -583,9 +574,7 @@ def _spa_TreeTagger_convert(pos):
         # NEG	Negation
         # UMMX	measure unit (MHz, km, mA)
     }
-    if pos.startswith("V"):
-        return "VERB"
-    return pos_dict.get(pos[:3], "X")
+    return "VERB" if pos.startswith("V") else pos_dict.get(pos[:3], "X")
 
 
 def _ita_TreeTagger_convert(pos):

@@ -32,10 +32,10 @@ def run_stanza(nlp, document, batch_size, max_sentence_length: int = 0, max_toke
                   " - Exclude sentences with unreasonably long tokens by setting the " \
                   "'stanza.max_token_length' config variable to something lower (current value: " \
                   f"{max_token_length or 'disabled'})."
-            if gpu_error:
-                msg += "\n - Switch to using CPU by setting the 'stanza.use_gpu' config variable to false."
         else:
             msg = str(e)
+        if gpu_error:
+            msg += "\n - Switch to using CPU by setting the 'stanza.use_gpu' config variable to false."
         raise SparvErrorMessage(msg)
     return doc
 

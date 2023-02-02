@@ -16,7 +16,7 @@ def yaml_export(out: Export = Export("version_info/info_[metadata.id].yaml")):
     """Create YAML file containing annotation version information."""
     info_dict = {
         "Sparv version": sparv_version,
-        "Annotation date": datetime.today().strftime("%Y-%m-%d")
+        "Annotation date": datetime.now().strftime("%Y-%m-%d"),
     }
 
     # Write YAML file

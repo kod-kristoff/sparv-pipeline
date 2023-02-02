@@ -24,11 +24,7 @@ UNDEF = "_"
 def preloader(maltjar, model, encoding):
     """Preload MaltParser executable."""
     process = maltstart(maltjar, model, encoding, send_empty_sentence=True)
-    process_dict = {
-        "process": process,
-        "restart": False
-    }
-    return process_dict
+    return {"process": process, "restart": False}
 
 
 def cleanup(maltjar, model, encoding, process_dict):

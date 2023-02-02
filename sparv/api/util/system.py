@@ -19,9 +19,7 @@ def kill_process(process):
     try:
         process.kill()
     except OSError as exc:
-        if exc.errno == errno.ESRCH:  # No such process
-            pass
-        else:
+        if exc.errno != errno.ESRCH:
             raise
 
 
@@ -50,7 +48,7 @@ def call_java(jar, arguments, options=[], stdin="", search_paths=(),
     # For WSD: use = instead of space in arguments
     # TODO: Remove when fixed!
     if isinstance(arguments[0], tuple):
-        arguments = ["{}={}".format(x, y) for x, y in arguments]
+        arguments = [f"{x}={y}" for x, y in arguments]
     java_args = list(options) + ["-jar", jarfile] + list(arguments)
     return call_binary("java", arguments=java_args, stdin=stdin,
                        search_paths=search_paths, encoding=encoding,
@@ -82,26 +80,28 @@ def call_binary(name, arguments=(), stdin="", raw_command=None, search_paths=(),
         stdin = "\n".join(stdin)
     if encoding is not None and isinstance(stdin, str):
         stdin = stdin.encode(encoding)
-    logger.info("CALL: %s", " ".join(str(c) for c in command) if not raw_command else command)
+    logger.info(
+        "CALL: %s",
+        command if raw_command else " ".join(str(c) for c in command),
+    )
     command = Popen(command, shell=use_shell,
                     stdin=PIPE, stdout=PIPE,
                     stderr=(None if verbose else PIPE),
                     close_fds=False)
     if return_command:
         return command
-    else:
-        stdout, stderr = command.communicate(stdin)
-        if not allow_error and command.returncode:
-            if stdout:
-                logger.info(stdout.decode())
-            if stderr:
-                logger.warning(stderr.decode())
-            raise OSError("%s returned error code %d" % (binary, command.returncode))
-        if encoding:
-            stdout = stdout.decode(encoding)
-            if stderr:
-                stderr = stderr.decode(encoding)
-        return stdout, stderr
+    stdout, stderr = command.communicate(stdin)
+    if not allow_error and command.returncode:
+        if stdout:
+            logger.info(stdout.decode())
+        if stderr:
+            logger.warning(stderr.decode())
+        raise OSError("%s returned error code %d" % (binary, command.returncode))
+    if encoding:
+        stdout = stdout.decode(encoding)
+        if stderr:
+            stderr = stderr.decode(encoding)
+    return stdout, stderr
 
 
 def find_binary(name: Union[str, list], search_paths=(), executable: bool = True, allow_dir: bool = False,
@@ -126,10 +126,9 @@ def find_binary(name: Union[str, list], search_paths=(), executable: bool = True
 
     # Use 'which' first
     for binary in name:
-        if not os.path.dirname(binary) == "":
+        if os.path.dirname(binary) != "":
             continue
-        path_to_bin = shutil.which(binary)
-        if path_to_bin:
+        if path_to_bin := shutil.which(binary):
             return path_to_bin
 
     # Look for file in paths
@@ -138,16 +137,17 @@ def find_binary(name: Union[str, list], search_paths=(), executable: bool = True
             path_to_bin = os.path.join(directory, binary)
             if os.path.isfile(path_to_bin) or (allow_dir and os.path.isdir(path_to_bin)):
                 if executable and not allow_dir:
-                    assert os.access(path_to_bin, os.X_OK), "Binary is not executable: %s" % path_to_bin
+                    assert os.access(
+                        path_to_bin, os.X_OK
+                    ), f"Binary is not executable: {path_to_bin}"
                 return path_to_bin
 
-    if raise_error:
-        err_msg = f"Couldn't find binary: {name[0]}\nSearched in: {', '.join(search_paths)}\n"
-        if len(name) > 1:
-            err_msg += f"For binary names: {', '.join(name)}"
-        raise SparvErrorMessage(err_msg)
-    else:
+    if not raise_error:
         return None
+    err_msg = f"Couldn't find binary: {name[0]}\nSearched in: {', '.join(search_paths)}\n"
+    if len(name) > 1:
+        err_msg += f"For binary names: {', '.join(name)}"
+    raise SparvErrorMessage(err_msg)
 
 
 def rsync(local, host=None, remote=None):
@@ -161,10 +161,12 @@ def rsync(local, host=None, remote=None):
     remote_dir = os.path.dirname(remote)
 
     if os.path.isdir(local):
-        logger.info(f"Copying directory: {local} => {host + ':' if host else ''}{remote}")
+        logger.info(
+            f"Copying directory: {local} => {f'{host}:' if host else ''}{remote}"
+        )
         args = ["--recursive", "--delete", f"{local}/"]
     else:
-        logger.info(f"Copying file: {local} => {host + ':' if host else ''}{remote}")
+        logger.info(f"Copying file: {local} => {f'{host}:' if host else ''}{remote}")
         args = [local]
 
     if host:

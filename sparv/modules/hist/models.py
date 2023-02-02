@@ -108,11 +108,11 @@ def read_lmf(xml, annotation_elements=("writtenForm", "lemgram"), verbose=True, 
 
                 lem = elem.find("Lemma").find("FormRepresentation")
                 for a in annotation_elements:
-                    if a == "writtenForm":
-                        key = "gf"
-                    elif a == "lemgram":
+                    if a == "lemgram":
                         key = "lem"
-                    annotations[key] = tuple([_findval(lem, a)])
+                    elif a == "writtenForm":
+                        key = "gf"
+                    annotations[key] = (_findval(lem, a), )
 
                 pos = _findval(lem, "partOfSpeech")
                 inhs = _findval(lem, "inherent")
@@ -134,28 +134,22 @@ def read_lmf(xml, annotation_elements=("writtenForm", "lemgram"), verbose=True, 
                             # Handle multi-word expressions
                             multiwords.append(word)
 
-                            # We don't use any particles or mwe:s with gaps since that information is not formally
-                            # expressed in the historical lexicons. But keep the fields so that the file format matches
-                            # the saldo-pickle format.
-                            particle = False
-                            mwe_gap = False
-
                             # Is it the last word in the multi word expression?
                             if i == len(wordparts) - 1:
+                                particle = False
+                                mwe_gap = False
                                 lexicon.setdefault(multiwords[0], {}).setdefault(annotations, (set(), set(), mwe_gap, particle))[1].add(tuple(multiwords[1:]))
                                 multiwords = []
-                        else:
-                            # Single word expressions
-                            if translate_tags:
-                                tags = _convert_default(pos, inhs, param)
-                                if not tags and use_fallback:
-                                    tags = _pos_from_lemgram(lemgram)
-                                if tags:
-                                    lexicon.setdefault(word, {}).setdefault(annotations, (set(), set(), False, False))[0].update(tags)
-                            else:
-                                saldotag = " ".join([pos, param])  # this tag is rather useless, but at least gives some information
-                                tags = tuple([saldotag])
+                        elif translate_tags:
+                            tags = _convert_default(pos, inhs, param)
+                            if not tags and use_fallback:
+                                tags = _pos_from_lemgram(lemgram)
+                            if tags:
                                 lexicon.setdefault(word, {}).setdefault(annotations, (set(), set(), False, False))[0].update(tags)
+                        else:
+                            saldotag = " ".join([pos, param])  # this tag is rather useless, but at least gives some information
+                            tags = (saldotag, )
+                            lexicon.setdefault(word, {}).setdefault(annotations, (set(), set(), False, False))[0].update(tags)
 
             # Done parsing section. Clear tree to save memory
             if elem.tag in ["LexicalEntry", "frame", "resFrame"]:
@@ -227,7 +221,11 @@ def _try_translate(params):
                 break
         if m is not None:
             sucfilter = m.expand(post).replace(" ", r"\.").replace("+", r"\+")
-            return set(suctag for suctag in tagmappings.tags["suc_tags"] if re.match(sucfilter, suctag))
+            return {
+                suctag
+                for suctag in tagmappings.tags["suc_tags"]
+                if re.match(sucfilter, suctag)
+            }
     return []
 
 

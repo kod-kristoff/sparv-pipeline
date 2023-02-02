@@ -39,7 +39,7 @@ def print_module_summary(snake_storage):
             description = registry.modules[module_name].description or ""
             if module_name.startswith("custom."):
                 description = get_custom_module_description(module_name)
-            table.add_row("  " + module_name, description)
+            table.add_row(f"  {module_name}", description)
         table.add_row()
     console.print(table)
     console.print("For more details about a specific module run [green]'sparv modules \\[module name]'[/green].",
@@ -70,18 +70,19 @@ def print_module_info(module_types, module_names, snake_storage, reverse_config_
             modules = all_module_types.get(module_type)
             print_modules(modules, module_type, reverse_config_usage, snake_storage)
 
-    # Print only info for chosen module_names
     else:
         invalid_modules = module_names
         for module_type in module_types:
             modules = all_module_types.get(module_type)
-            modules = dict((k, v) for k, v in modules.items() if k in module_names)
-            if modules:
+            if modules := {
+                k: v for k, v in modules.items() if k in module_names
+            }:
                 invalid_modules = [m for m in invalid_modules if m not in modules.keys()]
                 print_modules(modules, module_type, reverse_config_usage, snake_storage)
         if invalid_modules:
-            console.print("[red]Module{} not found: {}[/red]".format("s" if len(invalid_modules) > 1 else "",
-                                                                     ", ".join(invalid_modules)))
+            console.print(
+                f'[red]Module{"s" if len(invalid_modules) > 1 else ""} not found: {", ".join(invalid_modules)}[/red]'
+            )
 
 
 def print_modules(modules: dict, module_type: str, reverse_config_usage: dict, snake_storage: snake_utils.SnakeStorage,
@@ -128,18 +129,22 @@ def print_modules(modules: dict, module_type: str, reverse_config_usage: dict, s
                 custom_params = custom_annotations[module_name][f_name].get("params", {})
                 params = custom_params
 
-            # Annotations
-            f_anns = modules[module_name][f_name].get("annotations", {})
-            if f_anns:
+            if f_anns := modules[module_name][f_name].get("annotations", {}):
                 this_box_style = box_style if any(a[1] for a in f_anns) else box.SIMPLE
                 table = Table(title="[b]Annotations[/b]", box=this_box_style, show_header=False,
                               title_justify="left", padding=(0, 2), pad_edge=False, border_style="bright_black")
                 table.add_column(no_wrap=True)
                 table.add_column()
                 for f_ann in sorted(f_anns):
-                    table.add_row("• " + f_ann[0].name + (
-                        f"\n  [i dim]class:[/] <{f_ann[0].cls}>" if f_ann[0].cls else ""),
-                        f_ann[1] or "")
+                    table.add_row(
+                        f"• {f_ann[0].name}"
+                        + (
+                            f"\n  [i dim]class:[/] <{f_ann[0].cls}>"
+                            if f_ann[0].cls
+                            else ""
+                        ),
+                        f_ann[1] or "",
+                    )
                 console.print(Padding(table, (0, 0, 0, 4)))
             elif custom_params:
                 # Print info about custom annotators
@@ -151,16 +156,14 @@ def print_modules(modules: dict, module_type: str, reverse_config_usage: dict, s
                               "section of your corpus configuration and specify its arguments.")
                 console.print(Padding(table, (0, 0, 0, 4)))
 
-            # Config variables
-            f_config = reverse_config_usage.get(f"{module_name}:{f_name}")
-            if f_config:
+            if f_config := reverse_config_usage.get(f"{module_name}:{f_name}"):
                 console.print()
                 table = Table(title="[b]Configuration variables used[/b]", box=box_style, show_header=False,
                               title_justify="left", padding=(0, 2), pad_edge=False, border_style="bright_black")
                 table.add_column(no_wrap=True)
                 table.add_column()
                 for config_key in sorted(f_config):
-                    table.add_row("• " + config_key[0], config_key[1] or "")
+                    table.add_row(f"• {config_key[0]}", config_key[1] or "")
                 console.print(Padding(table, (0, 0, 0, 4)))
 
             # Parameters
@@ -171,9 +174,9 @@ def print_modules(modules: dict, module_type: str, reverse_config_usage: dict, s
                 table.add_column()
                 for p, (default, typ, li, optional) in params.items():
                     opt_str = "(optional) " if optional else ""
-                    typ_str = "list of " + typ.__name__ if li else typ.__name__
+                    typ_str = f"list of {typ.__name__}" if li else typ.__name__
                     def_str = f", default: {repr(default)}" if default is not None else ""
-                    table.add_row("• " + p, f"{opt_str}{typ_str}{def_str}")
+                    table.add_row(f"• {p}", f"{opt_str}{typ_str}{def_str}")
                 console.print(Padding(table, (0, 0, 0, 4)))
             print()
 
@@ -188,21 +191,24 @@ def print_annotation_classes():
     table.add_row("[b]Available annotation classes[/b]")
     table.add_row("  [i]Class[/i]", "[i]Annotation[/i]")
     for annotation_class, anns in sorted(registry.annotation_classes["module_classes"].items()):
-        table.add_row("  " + annotation_class, "\n".join(sorted(set(anns), key=anns.index)))
+        table.add_row(
+            f"  {annotation_class}",
+            "\n".join(sorted(set(anns), key=anns.index)),
+        )
 
     if registry.annotation_classes["config_classes"]:
         table.add_row()
         table.add_row("[b]Classes set in config[/b]")
         table.add_row("  [i]Class[/i]", "[i]Annotation[/i]")
         for annotation_class, ann in registry.annotation_classes["config_classes"].items():
-            table.add_row("  " + annotation_class, ann)
+            table.add_row(f"  {annotation_class}", ann)
 
     if registry.annotation_classes["implicit_classes"]:
         table.add_row()
         table.add_row("[b]Class values inferred from annotation usage[/b]")
         table.add_row("  [i]Class[/i]", "[i]Annotation[/i]")
         for annotation_class, ann in registry.annotation_classes["implicit_classes"].items():
-            table.add_row("  " + annotation_class, ann)
+            table.add_row(f"  {annotation_class}", ann)
 
     console.print(table)
 
@@ -211,13 +217,12 @@ def print_languages():
     """Print all supported languages."""
     print()
     table = Table(title="Supported languages", box=box.SIMPLE, show_header=False, title_justify="left")
-    full_langs = dict((k, v) for k, v in registry.languages.items() if "-" not in k)
+    full_langs = {k: v for k, v in registry.languages.items() if "-" not in k}
     for language, name in sorted(full_langs.items(), key=lambda x: x[1]):
         table.add_row(name, language)
     console.print(table)
 
-    sub_langs = dict((k, v) for k, v in registry.languages.items() if "-" in k)
-    if sub_langs:
+    if sub_langs := {k: v for k, v in registry.languages.items() if "-" in k}:
         print()
         table = Table(title="Supported language varieties", box=box.SIMPLE, show_header=False, title_justify="left")
         table.add_row("[b]Name[/b]", "[b]Language[/b]", "[b]Variety[/b]")
@@ -229,7 +234,7 @@ def print_languages():
 
 def get_custom_module_description(name):
     """Return string with description for custom modules."""
-    return "Custom module from corpus directory ({}.py).".format(name.split(".")[1])
+    return f'Custom module from corpus directory ({name.split(".")[1]}.py).'
 
 
 def print_installers(snake_storage, uninstall: bool = False):

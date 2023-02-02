@@ -23,9 +23,7 @@ def text_spans(text: Text = Text(),
     for span in chunk:
         token = corpus_text[span[0]:span[1]]
         if not keep_formatting_chars:
-            new_token = util.misc.remove_formatting_characters(token)
-            # If this token consists entirely of formatting characters, don't remove them. Empty tokens are bad!
-            if new_token:
+            if new_token := util.misc.remove_formatting_characters(token):
                 token = new_token
         out_annotation.append(token)
     if out:
@@ -103,11 +101,7 @@ def upostag(out: Output = Output("<token>:misc.upos", cls="token:upos", descript
             pos: Annotation = Annotation("<token:pos>")):
     """Convert SUC POS tags to UPOS."""
     pos_tags = pos.read()
-    out_annotation = []
-
-    for tag in pos_tags:
-        out_annotation.append(pos_to_upos(tag, "swe", "SUC"))
-
+    out_annotation = [pos_to_upos(tag, "swe", "SUC") for tag in pos_tags]
     out.write(out_annotation)
 
 
@@ -172,7 +166,7 @@ def select(out: Output,
     by default whitespace, with at least index + 1 elements.
     """
     if isinstance(index, str):
-        index = int(index)
+        index = index
     out.write(value.split(separator)[index] for value in annotation.read())
 
 
@@ -224,7 +218,7 @@ def replace_list(chunk: Annotation,
     sub = sub.split()
     if len(find) != len(sub):
         raise SparvErrorMessage("Find and sub must have the same number of words.")
-    translate = dict((f, s) for (f, s) in zip(find, sub))
+    translate = dict(zip(find, sub))
     out.write((translate.get(val, val) for val in chunk.read()))
 
 
@@ -260,8 +254,12 @@ def concat(out: Output,
     If merge_twins is set to True, no concatenation will be done on identical values.
     """
     b = list(right.read())
-    out.write((f"{val_a}{separator}{b[n]}" if not (merge_twins and val_a == b[n]) else val_a
-               for (n, val_a) in enumerate(left.read())))
+    out.write(
+        val_a
+        if (merge_twins and val_a == b[n])
+        else f"{val_a}{separator}{b[n]}"
+        for (n, val_a) in enumerate(left.read())
+    )
 
 
 @annotator("Concatenate two or more annotations, with an optional separator")
@@ -280,7 +278,7 @@ def backoff(chunk: Annotation,
     """Replace empty values in 'chunk' with values from 'backoff'."""
     # Function was called 'merge' before.
     backoff = list(backoff.read())
-    out.write((val if val else backoff[n] for (n, val) in enumerate(chunk.read())))
+    out.write(val or backoff[n] for (n, val) in enumerate(chunk.read()))
 
 
 @annotator("Replace empty values in 'chunk' with values from 'backoff' and output info about which annotator each "
@@ -318,13 +316,13 @@ def override(chunk: Annotation,
              out: Output):
     """Replace values in 'chunk' with non empty values from 'repl'."""
     def empty(val):
-        if not val:
-            return True
-        return val == "|"
+        return val == "|" if val else True
 
     repl = list(repl.read())
-    out.write((
-        repl[n] if not empty(repl[n]) else val for (n, val) in enumerate(chunk.read())))
+    out.write(
+        val if empty(repl[n]) else repl[n]
+        for (n, val) in enumerate(chunk.read())
+    )
 
 
 @annotator("Round floats to the given number of decimals")
@@ -332,8 +330,8 @@ def roundfloat(chunk: Annotation,
                out: Output,
                decimals: int = 2):
     """Round floats to the given number of decimals."""
-    decimals = int(decimals)
-    strformat = "%." + str(decimals) + "f"
+    decimals = decimals
+    strformat = f"%.{decimals}f"
     out.write((strformat % round(float(val), decimals) for val in chunk.read()))
 
 
@@ -371,9 +369,10 @@ def source(out: Output = Output("<text>:misc.source"),
 def first_from_set(out: Output,
                    chunk: Annotation,):
     """"Get the first annotation from a set."""
-    out_annotation = []
-    for val in chunk.read():
-        out_annotation.append(util.misc.set_to_list(val)[0] if util.misc.set_to_list(val) else "")
+    out_annotation = [
+        util.misc.set_to_list(val)[0] if util.misc.set_to_list(val) else ""
+        for val in chunk.read()
+    ]
     out.write(out_annotation)
 
 

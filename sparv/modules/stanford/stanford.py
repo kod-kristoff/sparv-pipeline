@@ -35,11 +35,17 @@ def annotate(corpus_text: Text = Text(),
                                               description="Sentence-relative positions of the dependency heads"),
              binary: BinaryDir = BinaryDir("[stanford.bin]")):
     """Use Stanford Parser to parse and annotate text."""
-    args = ["-cp", binary + "/*", "edu.stanford.nlp.pipeline.StanfordCoreNLP",
-            "-annotators", "tokenize,ssplit,pos,lemma,depparse,ner",
-            # The output columns are taken from edu.stanford.nlp.ling.AnnotationLookup:
-            "-output.columns", "idx,current,lemma,pos,ner,headidx,deprel,BEGIN_POS,END_POS",
-            "-outputFormat", "conll"]
+    args = [
+        "-cp",
+        f"{binary}/*",
+        "edu.stanford.nlp.pipeline.StanfordCoreNLP",
+        "-annotators",
+        "tokenize,ssplit,pos,lemma,depparse,ner",
+        "-output.columns",
+        "idx,current,lemma,pos,ner,headidx,deprel,BEGIN_POS,END_POS",
+        "-outputFormat",
+        "conll",
+    ]
 
     # Read corpus_text and text_spans
     text_data = corpus_text.read()
@@ -113,12 +119,7 @@ def _parse_output(stdout, lang, add_to_index):
     sentence = []
     for line in stdout.split("\n"):
         # Empty lines == new sentence
-        if not line.strip():
-            if sentence:
-                sentences.append(sentence)
-                sentence = []
-        # Create new word with attributes
-        else:
+        if line.strip():
             # -output.columns from the parser (see the args to the parser, in annotate() above):
             # idx, current, lemma, pos, ner,          headidx,     deprel, BEGIN_POS, END_POS
             ref,   word,    lemma, pos, named_entity, dephead_ref, deprel, start,     end     = line.split("\t")
@@ -131,6 +132,9 @@ def _parse_output(stdout, lang, add_to_index):
             token = Token(ref, word, pos, upos, lemma, named_entity, dephead_ref, deprel, start, end)
             sentence.append(token)
 
+        elif sentence:
+            sentences.append(sentence)
+            sentence = []
     return sentences
 
 

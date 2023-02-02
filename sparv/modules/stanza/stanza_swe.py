@@ -124,19 +124,19 @@ def annotate_swe(
                          f" (using {'GPU' if use_gpu and not fallback else 'CPU'}).")
             nlp_args["processors"] = "tokenize,pos,lemma,depparse"  # Comma-separated list of processors to use
             nlp_args["use_gpu"] = use_gpu and not fallback,
-            nlp = stanza.Pipeline(**nlp_args)
-
         else:
             logger.debug(f"Running POS-taggning on {len(sentences)} sentences.")
             nlp_args["processors"] = "tokenize,pos"  # Comma-separated list of processors to use
             nlp_args["use_gpu"] = use_gpu
-            nlp = stanza.Pipeline(**nlp_args)
+        nlp = stanza.Pipeline(**nlp_args)
 
         # Format document for stanza: list of lists of string
         document = [[word_list[i] for i in s] for s in sentences]
 
         doc = stanza_utils.run_stanza(nlp, document, batch_size, max_sentence_length)
-        stanza_utils.check_sentence_respect(len(list(s for s in sentences if s)), len(doc.sentences))
+        stanza_utils.check_sentence_respect(
+            len([s for s in sentences if s]), len(doc.sentences)
+        )
         word_count_real = sum(len(s) for s in sentences)
         word_count = 0
         for sent, tagged_sent in zip(sentences, doc.sentences):
@@ -203,7 +203,9 @@ def msdtag(out_msd: Output = Output("<token>:stanza.msd", cls="token:msd",
     })
 
     doc = stanza_utils.run_stanza(nlp, document, batch_size)
-    stanza_utils.check_sentence_respect(len(list(s for s in sentences if s)), len(doc.sentences))
+    stanza_utils.check_sentence_respect(
+        len([s for s in sentences if s]), len(doc.sentences)
+    )
     word_count = 0
     for sent, tagged_sent in zip(sentences, doc.sentences):
         for w_index, w in zip(sent, tagged_sent.words):
@@ -360,21 +362,14 @@ def _build_doc(sentences, word, baseform, msd, feats, ref):
         for i in sent:
             # Format feats
             feats_list = util.misc.set_to_list(feats[i])
-            if not feats_list:
-                feats_str = "_"
-            else:
-                feats_str = "|".join(feats_list)
+            feats_str = "|".join(feats_list) if feats_list else "_"
             # Format baseform
             baseform_list = util.misc.set_to_list(baseform[i])
-            if not baseform_list:
-                baseform_str = word[i]
-            else:
-                baseform_str = baseform_list[0]
-
+            baseform_str = baseform_list[0] if baseform_list else word[i]
             token_dict = {"id": int(ref[i]), "text": word[i], "lemma": baseform_str,
                           "xpos": msd[i], "feats": feats_str}
             in_sent.append(token_dict)
-            # logger.debug("\t".join(str(v) for v in token_dict.values()))
+                    # logger.debug("\t".join(str(v) for v in token_dict.values()))
         if in_sent:
             document.append(in_sent)
     return document

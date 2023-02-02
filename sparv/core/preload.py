@@ -1,4 +1,5 @@
 """Sparv preloader."""
+
 import logging
 import multiprocessing
 import pickle
@@ -29,9 +30,7 @@ handler = RichHandler(show_path=False, rich_tracebacks=True, console=console)
 handler.setFormatter(logging.Formatter("%(message)s", datefmt=log_handler.DATE_FORMAT))
 log.addHandler(handler)
 
-# Set compression
-compression = config.get("sparv.compression")
-if compression:
+if compression := config.get("sparv.compression"):
     io.compression = compression
 
 
@@ -237,11 +236,11 @@ def serve(socket_path: str, processes: int, storage: SnakeStorage):
     if not preload_config:
         raise SparvErrorMessage("Preloader config is missing. Use the 'preload' section "
                                 "in your config file to list annotators to preload.")
-    rules = {}
-    for rule in storage.all_rules:
-        if rule.has_preloader:
-            rules[rule.target_name] = rule
-
+    rules = {
+        rule.target_name: rule
+        for rule in storage.all_rules
+        if rule.has_preloader
+    }
     log.info("Loading annotators: " + ", ".join(preload_config))
 
     for annotator in preload_config:
@@ -249,10 +248,10 @@ def serve(socket_path: str, processes: int, storage: SnakeStorage):
             raise SparvErrorMessage(f"Unknown annotator '{annotator}' in preloader config. Either it doesn't exist "
                                     "or it doesn't support preloading.")
         rule = rules[annotator]
-        preloader_params = {}
-        for param in rule.annotator_info["preloader_params"]:
-            preloader_params[param] = rule.parameters[param]
-
+        preloader_params = {
+            param: rule.parameters[param]
+            for param in rule.annotator_info["preloader_params"]
+        }
         annotator_obj = Preloader(
             rule.annotator_info["function"],
             rule.annotator_info["preloader_target"],

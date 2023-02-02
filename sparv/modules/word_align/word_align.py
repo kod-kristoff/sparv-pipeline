@@ -30,12 +30,12 @@ def align_texts(word1, word2, linktok1, linktok2, link1, link2, linkref2, out_wo
             linklist.append(LINKREF2[sent2[int(j)]])
             TMP_WORDLINK[tokid1] = linklist
 
-    # make final annotation including empty word links
-    OUT_WORDLINK = {}
-    for tokid in WORD1:
-        OUT_WORDLINK[tokid] = affix + delimiter.join(TMP_WORDLINK.get(tokid, -1)) + affix \
-            if TMP_WORDLINK.get(tokid, -1) != -1 else affix
-
+    OUT_WORDLINK = {
+        tokid: affix + delimiter.join(TMP_WORDLINK.get(tokid, -1)) + affix
+        if TMP_WORDLINK.get(tokid, -1) != -1
+        else affix
+        for tokid in WORD1
+    }
     util.write_annotation(out_wordlink, OUT_WORDLINK)
     # inspect_results("inspection.txt", WORD1, WORD2, linktok1, linktok2, link1, link2, OUT_WORDLINK, delimiter)
 

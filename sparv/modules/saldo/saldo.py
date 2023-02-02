@@ -112,11 +112,12 @@ def main(token, word, sentence, reference, out_sense, out_lemgram, out_baseform,
     models_list = [(m.path.stem, m) for m in models]
     if not models_preloaded:
         lexicon_list = [(name, SaldoLexicon(lex.path)) for name, lex in models_list]
-    # Use pre-loaded lexicons
     else:
         lexicon_list = []
         for name, _lex in models_list:
-            assert models_preloaded.get(name, None) is not None, "Lexicon %s not found!" % name
+            assert (
+                models_preloaded.get(name, None) is not None
+            ), f"Lexicon {name} not found!"
             lexicon_list.append((name, models_preloaded[name]))
 
     # Combine annotation names in SALDO lexicon with out annotations
@@ -139,11 +140,7 @@ def main(token, word, sentence, reference, out_sense, out_lemgram, out_baseform,
 
     word_annotation = list(word.read())
     ref_annotation = list(reference.read())
-    if msd:
-        msd_annotation = list(msd.read())
-    else:
-        msd_annotation = word.create_empty_attribute()
-
+    msd_annotation = list(msd.read()) if msd else word.create_empty_attribute()
     sentences, orphans = sentence.get_children(token)
     sentences.append(orphans)
 
@@ -210,16 +207,13 @@ def _find_single_word(thewords, lexicon_list, msdtag, precision, min_precision, 
 
     for w in thewords:
         for name, lexicon in lexicon_list:
-            if name == "saldo" or len(lexicon_list) == 1:
-                prefix = ""
-            else:
-                prefix = name + "m--"
+            prefix = "" if name == "saldo" or len(lexicon_list) == 1 else f"{name}m--"
             annotation = []
             for a in lexicon.lookup(w):
                 annotation.append(a + (prefix,))
             ann_tags_words += annotation
-            # # Set break if each word only gets annotations from first lexicon that has entry for word
-            # break
+                    # # Set break if each word only gets annotations from first lexicon that has entry for word
+                    # break
 
     annotation_precisions = [(get_precision(msdtag, msdtags), annotation, prefix)
                              for (annotation, msdtags, wordslist, _, _, prefix) in ann_tags_words if not wordslist]
@@ -273,16 +267,21 @@ def _find_multiword_expressions(incomplete_multis, complete_multis, thewords, re
         seeking_word = x[1][0]  # The next word we are looking for in this multi-word expression
 
         # Is a gap necessary in this position for this expression?
-        if seeking_word == "*":
-            if x[1][1].lower() in (w.lower() for w in thewords):
-                seeking_word = x[1][1]
-                del x[1][0]
+        if seeking_word == "*" and x[1][1].lower() in (
+            w.lower() for w in thewords
+        ):
+            seeking_word = x[1][1]
+            del x[1][0]
 
         # If current gap is greater than max_gaps, stop searching
         if x[5][1] > max_gaps:
             todelfromincomplete.append(i)
-        #                                                         |  Last word may not be PP if this is a particle-multi-word                      |
-        elif seeking_word.lower() in (w.lower() for w in thewords) and (skip_pos_check or not (len(x[1]) == 1 and x[4] and msdtag.startswith("PP"))):
+        elif seeking_word.lower() in (w.lower() for w in thewords) and (
+            skip_pos_check
+            or len(x[1]) != 1
+            or not x[4]
+            or not msdtag.startswith("PP")
+        ):
             x[5][0] = False     # last word was not a gap
             del x[1][0]
             x[2].append(ref)
@@ -311,33 +310,38 @@ def _find_multiword_expressions(incomplete_multis, complete_multis, thewords, re
                 else:
                     complete_multis.append((x[2], x[0]))
 
-        else:
-            # We've reached a gap
-            # Are gaps allowed?
-            if x[3]:
-                # If previous word was NOT part of a gap, this is a new gap, so increment gap counter
-                if not x[5][0]:
-                    x[5][1] += 1
-                x[5][0] = True  # Mark that this word was part of a gap
+        elif x[3]:
+            # If previous word was NOT part of a gap, this is a new gap, so increment gap counter
+            if not x[5][0]:
+                x[5][1] += 1
+            x[5][0] = True  # Mark that this word was part of a gap
 
-                # Avoid having another verb within a verb multi-word expression:
-                # delete current incomplete multi-word expr. if it starts with a verb and if current word has POS tag VB
-                if "..vbm." in x[0]["lem"][0] and msdtag.startswith("VB"):
-                    todelfromincomplete.append(i)
-
-            else:
-                # Gaps are not allowed for this multi-word expression
+            # Avoid having another verb within a verb multi-word expression:
+            # delete current incomplete multi-word expr. if it starts with a verb and if current word has POS tag VB
+            if "..vbm." in x[0]["lem"][0] and msdtag.startswith("VB"):
                 todelfromincomplete.append(i)
+
+        else:
+            # Gaps are not allowed for this multi-word expression
+            todelfromincomplete.append(i)
 
     # Delete seeking words from incomplete_multis
     for x in todelfromincomplete[::-1]:
         del incomplete_multis[x]
 
-    # Collect possible multiword expressions:
-    # Is this word a possible beginning of a multi-word expression?
-    looking_for = [(annotation, words, [ref], gap_allowed, is_particle, [False, 0])
-                   for (annotation, _, wordslist, gap_allowed, is_particle, _) in ann_tags_words if wordslist for words in wordslist]
-    if len(looking_for) > 0:
+    if looking_for := [
+        (annotation, words, [ref], gap_allowed, is_particle, [False, 0])
+        for (
+            annotation,
+            _,
+            wordslist,
+            gap_allowed,
+            is_particle,
+            _,
+        ) in ann_tags_words
+        if wordslist
+        for words in wordslist
+    ]:
         incomplete_multis.extend(looking_for)
 
 
@@ -353,12 +357,19 @@ def _remove_unwanted_overlaps(complete_multis):
             continue
         for b in complete_multis:
             # Check if both are of same POS
-            if not a == b and re.search(r"\.(\w\w?)m?\.", a[1]["lem"][0]).groups()[0] == re.search(
-                    r"\.(\w\w?)m?\.", b[1]["lem"][0]).groups()[0]:
+            if (
+                a != b
+                and re.search(r"\.(\w\w?)m?\.", a[1]["lem"][0]).groups()[0]
+                == re.search(r"\.(\w\w?)m?\.", b[1]["lem"][0]).groups()[0]
+            ):
                 if b[0][0] < a[0][0] < b[0][-1] < a[0][-1]:
                     # A case of b1 a1 b2 a2. Remove a.
                     remove.add(ai)
-                elif a[0][0] < b[0][0] and a[0][-1] == b[0][-1] and not all((x in a[0]) for x in b[0]):
+                elif (
+                    a[0][0] < b[0][0]
+                    and a[0][-1] == b[0][-1]
+                    and any(x not in a[0] for x in b[0])
+                ):
                     # A case of a1 b1 ab2. Remove a.
                     remove.add(ai)
 
@@ -375,7 +386,7 @@ def _save_multiwords(complete_multis, sentence_tokens):
                 first_ref = tok_ref
             for ann, val in list(c[1].items()):
                 if not first:
-                    val = [x + ":" + first_ref for x in val]
+                    val = [f"{x}:{first_ref}" for x in val]
                 sentence_tokens[tok_ref]["annotations"].setdefault(ann, []).extend(val)
             first = False
 

@@ -61,13 +61,13 @@ def ids(source_file: SourceFilename = SourceFilename(),
     """Create unique IDs for every span of an existing annotation."""
     logger.progress()
     fileid = fileid.read()
-    prefix = prefix + fileid
+    prefix += fileid
 
     ann = list(annotation.read())
     out_annotation = []
     logger.progress(total=len(ann) + 1)
     # Use source filename and annotation name as seed for the IDs
-    _reset_id("{}/{}".format(source_file, annotation), len(ann))
+    _reset_id(f"{source_file}/{annotation}", len(ann))
     for _ in ann:
         new_id = _make_id(prefix, out_annotation)
         out_annotation.append(new_id)

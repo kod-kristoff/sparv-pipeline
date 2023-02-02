@@ -144,7 +144,7 @@ def config(id: str = Config("metadata.id"),
         "reading_mode": reading_mode
     }
 
-    config_dict.update({k: v for k, v in optional.items() if v})
+    config_dict |= {k: v for k, v in optional.items() if v}
 
     # Use CWB annotations if no specific Korp annotations are specified
     # TODO: Doesn't currently work, as annotations/source_annotations already inherits from export.[source_]annotations
@@ -167,7 +167,10 @@ def config(id: str = Config("metadata.id"),
         # Figure out based on available annotations and scrambling
         within = []
 
-        anns = set([split_annotation(a[0])[0] for a in itertools.chain(annotations, source_annotations or [])])
+        anns = {
+            split_annotation(a[0])[0]
+            for a in itertools.chain(annotations, source_annotations or [])
+        }
         if sentence and sentence.name in anns:
             within.append(export_names[sentence.name])
 
@@ -175,17 +178,23 @@ def config(id: str = Config("metadata.id"),
             # Check installation list or default export to figure out if corpus is scrambled
             scrambled = True
             if installations:
-                if "cwb:install_corpus_scrambled" in installations:
+                if (
+                    "cwb:install_corpus_scrambled" not in installations
+                    and "cwb:install_corpus" not in installations
+                    and exports
+                    and "cwb:encode_scrambled" in exports
+                    or "cwb:install_corpus_scrambled" in installations
+                ):
                     scrambled = True
-                elif "cwb:install_corpus" in installations:
+                elif (
+                    "cwb:install_corpus" not in installations
+                    and exports
+                    and "cwb:encode" in exports
+                    or "cwb:install_corpus" in installations
+                ):
                     scrambled = False
                 elif exports:
-                    if "cwb:encode_scrambled" in exports:
-                        scrambled = True
-                    elif "cwb:encode" in exports:
-                        scrambled = False
-                    else:
-                        logger.warning("Couldn't determine if corpus is scrambled. Assuming it is scrambled.")
+                    logger.warning("Couldn't determine if corpus is scrambled. Assuming it is scrambled.")
             if not (scrambled and sentence and scramble_on == sentence):
                 within.append(export_names[paragraph.name])
 
@@ -193,7 +202,7 @@ def config(id: str = Config("metadata.id"),
         context = [v if isinstance(v, str) else v["value"] for v in within]
     elif context and not within:
         within = [v.split(" ", 1)[1] if isinstance(v, str) else v["value"].split(" ", 1)[1] for v in context]
-    elif not within and not context:
+    elif not within:
         logger.warning("Couldn't figure out 'context' and 'within' automatically. Set at least one of them manually in "
                        "the config.")
 
@@ -268,12 +277,13 @@ def config(id: str = Config("metadata.id"),
             if definition["preset"] not in presets:
                 logger.warning(f"{annotation.name!r} refers to a non-existent preset. Annotation will not be included.")
                 continue
-            if not is_token:
-                # Check if non-token annotation should be used as a token-annotation in Korp
-                if definition.get("use_as_positional") or presets[definition["preset"]] == "positional":
-                    is_token = True
-                    definition["is_struct_attr"] = True
-                    definition.pop("use_as_positional", None)
+            if not is_token and (
+                definition.get("use_as_positional")
+                or presets[definition["preset"]] == "positional"
+            ):
+                is_token = True
+                definition["is_struct_attr"] = True
+                definition.pop("use_as_positional", None)
         elif not is_token:
             # Check if non-token annotation should be used as a token-annotation in Korp
             if definition.get("use_as_positional"):

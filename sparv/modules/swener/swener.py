@@ -95,7 +95,7 @@ def parse_swener_output(sentences: list, token: Annotation, output, out_ne: Outp
 
     # Loop through the NE-tagged sentences and parse each one with ElemenTree
     for sent, tagged_sent in zip(sentences, output.strip().split(SENT_SEP)):
-        xml_sent = "<sroot>" + tagged_sent + "</sroot>"
+        xml_sent = f"<sroot>{tagged_sent}</sroot>"
 
         # Filter out tags on the format <EnamexXxxXxx> since they seem to always overlap with <ENAMEX> elements,
         # making the XML invalid.
@@ -113,7 +113,6 @@ def parse_swener_output(sentences: list, token: Annotation, output, out_ne: Outp
 
         try:
             for count, child in enumerate(children):
-                start_pos = token_spans[sent[i]][0]
                 start_i = i
 
                 # If current child has text, increase token counter
@@ -122,12 +121,10 @@ def parse_swener_output(sentences: list, token: Annotation, output, out_ne: Outp
 
                     # Extract NE tags and save them in lists
                     if child.tag != "sroot":
-                        if start_i < previous_end:
-                            pass
-                            # logger.warning("Overlapping NE elements found; discarding one.")
-                        else:
+                        if start_i >= previous_end:
                             end_pos = token_spans[sent[i - 1]][1]
                             previous_end = i
+                            start_pos = token_spans[sent[i]][0]
                             span = (start_pos, end_pos)
                             out_ne_spans.append(span)
                             out_ex.append(child.tag)
@@ -137,8 +134,12 @@ def parse_swener_output(sentences: list, token: Annotation, output, out_ne: Outp
 
                         # If this child has a tail and it doesn't start with a space, or if it has no tail at all
                         # despite not being the last child, it means this NE ends in the middle of a token.
-                        if (child.tail and child.tail.strip() and not child.tail[0] == " ") or (
-                                not child.tail and count < len(children) - 1):
+                        if (
+                            child.tail
+                            and child.tail.strip()
+                            and child.tail[0] != " "
+                            or (not child.tail and count < len(children) - 1)
+                        ):
                             i -= 1
                             # logger.warning("Split token returned by name tagger.")
 
@@ -146,8 +147,13 @@ def parse_swener_output(sentences: list, token: Annotation, output, out_ne: Outp
                 if child.tail and child.tail.strip():
                     i += len(child.tail.strip().split(TOK_SEP))
 
-                if (child.tag == "sroot" and child.text and not child.text[-1] == " ") or (
-                        child.tail and not child.tail[-1] == " "):
+                if (
+                    child.tag == "sroot"
+                    and child.text
+                    and child.text[-1] != " "
+                    or child.tail
+                    and child.tail[-1] != " "
+                ):
                     # The next NE would start in the middle of a token, so decrease the counter by 1
                     i -= 1
         except IndexError:

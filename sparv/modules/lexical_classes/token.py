@@ -38,9 +38,14 @@ def blingbring_words(out: Output = Output("<token>:lexical_classes.blingbring",
         if saldo_ids:
             for sid in saldo_ids:
                 if connect_IDs:
-                    rogetid = rogetid.union(set(i + scoresep + sid for i in lexicon.lookup(sid, default=set())))
+                    rogetid = rogetid.union(
+                        {
+                            i + scoresep + sid
+                            for i in lexicon.lookup(sid, default=set())
+                        }
+                    )
                 else:
-                    rogetid = rogetid.union(lexicon.lookup(sid, default=dict()).get(class_set, set()))
+                    rogetid = rogetid.union(lexicon.lookup(sid, default={}).get(class_set, set()))
         return sorted(rogetid)
 
     annotate_words(out, model, saldoids, pos, annotate_bring, pos_limit=pos_limit, disambiguate=disambiguate,
@@ -72,7 +77,12 @@ def swefn_words(out: Output = Output("<token>:lexical_classes.swefn",
         if saldo_ids:
             for sid in saldo_ids:
                 if connect_IDs:
-                    swefnid = swefnid.union(set(i + scoresep + sid for i in lexicon.lookup(sid, default=set())))
+                    swefnid = swefnid.union(
+                        {
+                            i + scoresep + sid
+                            for i in lexicon.lookup(sid, default=set())
+                        }
+                    )
                 else:
                     swefnid = swefnid.union(lexicon.lookup(sid, default=set()))
         return sorted(swefnid)
@@ -153,7 +163,4 @@ def annotate_words(out: Output, model: Model, saldoids: Annotation, pos: Annotat
 
 def pos_ok(token_pos, token_index, pos_limit):
     """If there is a pos_limit, check if token has correct part of speech. Pass all tokens otherwise."""
-    if pos_limit:
-        return token_pos[token_index] in pos_limit
-    else:
-        return True
+    return token_pos[token_index] in pos_limit if pos_limit else True

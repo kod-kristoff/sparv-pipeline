@@ -37,9 +37,11 @@ def main(argv=None, log_level: str = "info"):
     # Import module, which will add available functions to annotators registry
     importlib.import_module(".".join((modules_path, module_name)))
 
-    parser = argparse.ArgumentParser(prog="sparv run-module " + module_name,
-                                     epilog="note: Annotation classes and configuration variables are not available "
-                                            "when running annotators independently. Complete names must be used.")
+    parser = argparse.ArgumentParser(
+        prog=f"sparv run-module {module_name}",
+        epilog="note: Annotation classes and configuration variables are not available "
+        "when running annotators independently. Complete names must be used.",
+    )
     subparsers = parser.add_subparsers(dest="_annotator", help="Annotator function")
     subparsers.required = True
 
@@ -58,7 +60,7 @@ def main(argv=None, log_level: str = "info"):
             param_ann = parameter[1].annotation
             param_default = parameter[1].default
             is_optional = False
-            if not param_ann == inspect.Parameter.empty:
+            if param_ann != inspect.Parameter.empty:
                 arg_type, _is_list, is_optional = registry.get_type_hint_type(param_ann)
                 # arg_type = arg_type if arg_type in (str, int, bool) else None
             else:
@@ -70,24 +72,20 @@ def main(argv=None, log_level: str = "info"):
             required = param_default == inspect.Parameter.empty
             f_args = {"type": arg_type}
             if not required:
-                # Check if the default value is of a type we can handle when running a single module alone
                 if (arg_type in (str, int, bool) and not isinstance(param_default, Config)) or param_default is None:
                     # We can handle this
                     f_args["default"] = param_default
                     if arg_type == bool and param_default is False:
                         f_args["action"] = "store_true"
                         del f_args["type"]
+                elif is_optional:
+                    f_args["default"] = None
                 else:
-                    # We can't handle this type of default value
-                    # If the type hint is Optional, set default to None, otherwise make required
-                    if is_optional:
-                        f_args["default"] = None
-                    else:
-                        required = True
+                    required = True
             if required:
-                required_args.add_argument("--" + parameter[0], required=True, **f_args)
+                required_args.add_argument(f"--{parameter[0]}", required=True, **f_args)
             else:
-                subparser.add_argument("--" + parameter[0], help=" ", **f_args)
+                subparser.add_argument(f"--{parameter[0]}", help=" ", **f_args)
 
         subparser.set_defaults(has_source_=has_source)
         if not has_source and needs_source:

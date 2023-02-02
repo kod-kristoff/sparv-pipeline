@@ -32,6 +32,8 @@ def gather_annotations(annotations: List[Annotation],
         flatten: Whether to return the spans as a flat list
         split_overlaps: Whether to split up overlapping spans
     """
+
+
     class Span:
         """Object to store span information."""
 
@@ -71,8 +73,8 @@ def gather_annotations(annotations: List[Annotation],
         def __repr__(self):
             """Stringify the most interesting span info (for debugging mostly)."""
             if self.export != self.name:
-                return "<%s/%s %s %s-%s>" % (self.name, self.export, self.index, self.start, self.end)
-            return "<%s %s %s-%s>" % (self.name, self.index, self.start, self.end)
+                return f"<{self.name}/{self.export} {self.index} {self.start}-{self.end}>"
+            return f"<{self.name} {self.index} {self.start}-{self.end}>"
 
         def __lt__(self, other_span):
             """Return True if other_span comes after this span.
@@ -86,15 +88,19 @@ def gather_annotations(annotations: List[Annotation],
                 """Return a sort key for span which makes span comparison possible."""
                 hierarchy_index = elem_hierarchy.index(span.name) if span.name in elem_hierarchy else -1
                 if empty_span:
-                    if sub_positions:
-                        return (span.start, span.start_sub), hierarchy_index, (span.end, span.end_sub)
-                    else:
-                        return span.start, hierarchy_index, span.end
+                    return (
+                        (
+                            (span.start, span.start_sub),
+                            hierarchy_index,
+                            (span.end, span.end_sub),
+                        )
+                        if sub_positions
+                        else (span.start, hierarchy_index, span.end)
+                    )
+                if sub_positions:
+                    return (span.start, span.start_sub), (-span.end, -span.end_sub), hierarchy_index
                 else:
-                    if sub_positions:
-                        return (span.start, span.start_sub), (-span.end, -span.end_sub), hierarchy_index
-                    else:
-                        return span.start, -span.end, hierarchy_index
+                    return span.start, -span.end, hierarchy_index
 
             # Sort empty spans according to hierarchy or put them first
             if (self.start, self.start_sub) == (self.end, self.end_sub) or (
@@ -111,6 +117,7 @@ def gather_annotations(annotations: List[Annotation],
                 sort_key2 = get_sort_key(other_span)
 
             return sort_key1 < sort_key2
+
 
     if header_annotations is None:
         header_annotations = []
@@ -149,10 +156,14 @@ def gather_annotations(annotations: List[Annotation],
             insert_index = len(spans_dict[span.start])
             if span.name in elem_hierarchy:
                 for i, (instruction, s) in enumerate(spans_dict[span.start]):
-                    if instruction == "close":
-                        if s.name in elem_hierarchy and elem_hierarchy.index(s.name) < elem_hierarchy.index(span.name):
-                            insert_index = i
-                            break
+                    if (
+                        instruction == "close"
+                        and s.name in elem_hierarchy
+                        and elem_hierarchy.index(s.name)
+                        < elem_hierarchy.index(span.name)
+                    ):
+                        insert_index = i
+                        break
             spans_dict[span.start].insert(insert_index, ("open", span))
             spans_dict[span.end].insert(insert_index + 1, ("close", span))
         else:
@@ -184,12 +195,12 @@ def _handle_overlaps(spans_dict):
                 span_stack.append(span)
             elif event == "close":
                 closing_span = span_stack.pop()
-                if not closing_span == span:
+                if closing_span != span:
                     # Overlapping spans found
                     overlap_stack = []
 
                     # Close all overlapping spans and add an overlap ID to them
-                    while not closing_span == span:
+                    while closing_span != span:
                         overlap_count += 1
                         closing_span.overlap_id = overlap_count
 
@@ -238,11 +249,11 @@ def calculate_element_hierarchy(source_file, spans_list):
     span_duplicates = [v for v in span_duplicates.values() if len(v) > 1]
     # Add empty spans and spans with identical start positions
     for span_start in empty_span_starts:
-        span_duplicates.append(start_positions[span_start])
-        span_duplicates.append(end_positions[span_start])
-
+        span_duplicates.extend(
+            (start_positions[span_start], end_positions[span_start])
+        )
     # Flatten structure
-    unclear_spans = set([elem for elem_set in span_duplicates for elem in elem_set])
+    unclear_spans = {elem for elem_set in span_duplicates for elem in elem_set}
 
     # Get pairs of relations that need to be ordered
     relation_pairs = list(combinations(unclear_spans, r=2))
@@ -266,7 +277,7 @@ def calculate_element_hierarchy(source_file, spans_list):
         size = len(unclear_spans)
         for span in unclear_spans.copy():
             # Span is never a child in ordered_pairs, then it is first in the hierarchy
-            if not any([b == span for _a, b in ordered_pairs]):
+            if all(b != span for _a, b in ordered_pairs):
                 hierarchy.append(span)
                 unclear_spans.remove(span)
                 # Remove pairs from ordered_pairs where span is the parent
@@ -308,11 +319,16 @@ def get_source_annotations(source_annotation_names: Optional[List[str]], source_
     # Parse source_annotation_names
     annotation_names = util.misc.parse_annotation_list(source_annotation_names, available_source_annotations)
 
-    # Make sure source_annotations doesn't include annotations not in source
-    source_annotations = [(Annotation(a[0], source_file) if source_file else AnnotationAllSourceFiles(a[0]), a[1]) for a in
-                          annotation_names if a[0] in available_source_annotations]
-
-    return source_annotations
+    return [
+        (
+            Annotation(a[0], source_file)
+            if source_file
+            else AnnotationAllSourceFiles(a[0]),
+            a[1],
+        )
+        for a in annotation_names
+        if a[0] in available_source_annotations
+    ]
 
 
 def get_annotation_names(annotations: Union[ExportAnnotations, ExportAnnotationsAllSourceFiles],
@@ -466,11 +482,13 @@ def _create_export_names(annotations: List[Tuple[Union[Annotation, AnnotationAll
                 else:
                     new_name = annotation.attribute_name or annotation.annotation_name
 
-            if keep_struct_names:
-                # Keep annotation base name (the part before ":") if this is not a token attribute
-                if ":" in name and not name.startswith(token_name):
-                    base_name = annotation.annotation_name
-                    new_name = io.join_annotation(export_names.get(base_name, base_name), new_name)
+            if (
+                keep_struct_names
+                and ":" in name
+                and not name.startswith(token_name)
+            ):
+                base_name = annotation.annotation_name
+                new_name = io.join_annotation(export_names.get(base_name, base_name), new_name)
             export_names[name] = new_name
     else:
         if keep_struct_names:
@@ -484,8 +502,12 @@ def _create_export_names(annotations: List[Tuple[Union[Annotation, AnnotationAll
                     new_name = io.join_annotation(export_names.get(base_name, base_name), new_name)
                 export_names[name] = new_name
         else:
-            export_names = {annotation.name: (new_name if new_name else annotation.attribute_name or annotation.name)
-                            for annotation, new_name in annotations}
+            export_names = {
+                annotation.name: new_name
+                or annotation.attribute_name
+                or annotation.name
+                for annotation, new_name in annotations
+            }
 
     export_names = _add_global_namespaces(export_names, annotations, source_annotations, sparv_namespace,
                                           source_namespace)
@@ -500,16 +522,15 @@ def _create_export_names(annotations: List[Tuple[Union[Annotation, AnnotationAll
 def _get_xml_tagname(tag, xml_namespaces, xml_mode=False):
     """Take care of namespaces by looking up URIs for prefixes (if xml_mode=True) or by converting to dot notation."""
     sep = re.escape(XML_NAMESPACE_SEP)
-    m = re.match(fr"(.*){sep}(.+)", tag)
-    if m:
+    if m := re.match(fr"(.*){sep}(.+)", tag):
         if xml_mode:
-            # Replace prefix+tag with {uri}tag
-            uri = xml_namespaces.get(m.group(1), "")
-            if not uri:
-                raise SparvErrorMessage(f"You are trying to export the annotation '{tag}' but no URI was found for the "
-                                        f"namespace prefix '{m.group(1)}'!")
-            return re.sub(fr"(.*){sep}(.+)", fr"{{{uri}}}\2", tag)
-        elif m.group(1):
+            if uri := xml_namespaces.get(m[1], ""):
+                return re.sub(fr"(.*){sep}(.+)", fr"{{{uri}}}\2", tag)
+            else:
+                raise SparvErrorMessage(
+                    f"You are trying to export the annotation '{tag}' but no URI was found for the namespace prefix '{m[1]}'!"
+                )
+        elif m[1]:
             # Replace "prefix+tag" with "prefix.tag", skip this for default namespaces
             return re.sub(fr"(.*){sep}(.+)", fr"\1.\2", tag)
     return tag
@@ -552,22 +573,22 @@ def _check_name_collision(export_names, source_annotations):
         for v in values:
             attr_dict[v.annotation_name].append(v)
         attr_collisions = {k: v for k, v in attr_dict.items() if len(v) > 1}
-        for _elem, annots in attr_collisions.items():
+        for annots in attr_collisions.values():
             # If there are two colliding attributes and one is an automatic one, prefix it with SPARV_DEFAULT_NAMESPACE
             if len(annots) == 2 and len([a for a in annots if a.name not in source_names]) == 1:
                 sparv_annot = annots[0] if annots[0].name not in source_names else annots[1]
                 source_annot = annots[0] if annots[0].name in source_names else annots[1]
-                new_name = SPARV_DEFAULT_NAMESPACE + "." + export_names[sparv_annot.name]
+                new_name = f"{SPARV_DEFAULT_NAMESPACE}.{export_names[sparv_annot.name]}"
                 export_names[sparv_annot.name] = new_name
-                logger.info("Changing name of automatic annotation '{}' to '{}' due to collision with '{}'.".format(
-                            sparv_annot.name, new_name, source_annot.name))
-            # Warn the user if we cannot resolve collisions automatically
+                logger.info(
+                    f"Changing name of automatic annotation '{sparv_annot.name}' to '{new_name}' due to collision with '{source_annot.name}'."
+                )
             else:
                 annots_string = "\n".join([f"{a.name} ({'source' if a.name in source_names else 'sparv'} annotation)"
                                            for a in annots])
-                logger.warning("The following annotations are exported with the same name ({}) and might overwrite "
-                               "each other: \n\n{}\n\nIf you want to keep all of these annotations you can change "
-                               "their export names.".format(attr, annots_string))
+                logger.warning(
+                    f"The following annotations are exported with the same name ({attr}) and might overwrite each other: \n\n{annots_string}\n\nIf you want to keep all of these annotations you can change their export names."
+                )
     return export_names
 
 ################################################################################
@@ -583,9 +604,7 @@ def scramble_spans(span_positions, chunk_name: str, chunk_order):
     # Reformat span positions
     new_span_positions = [v for k, v in sorted(new_s_order.items())]  # Sort dict into list
     new_span_positions = [t for s in new_span_positions for t in s]  # Unpack chunks
-    new_span_positions = [(0, instruction, span) for instruction, span in new_span_positions]  # Add fake position (0)
-
-    return new_span_positions
+    return [(0, instruction, span) for instruction, span in new_span_positions]
 
 
 def _reorder_spans(span_positions, chunk_name: str, chunk_order):
@@ -617,14 +636,13 @@ def _reorder_spans(span_positions, chunk_name: str, chunk_order):
                 if not new_s_order[current_s_index]:
                     new_s_order[current_s_index].extend(parent_stack)
                 new_s_order[current_s_index].append((instruction, span))
-            else:
-                if current_s_index is not None:
-                    # Encountered child to chunk
-                    new_s_order[current_s_index].append((instruction, span))
-                else:
-                    # Encountered parent to chunk
-                    temp_stack.append((instruction, span))
+            elif current_s_index is None:
+                # Encountered parent to chunk
+                temp_stack.append((instruction, span))
 
+            else:
+                # Encountered child to chunk
+                new_s_order[current_s_index].append((instruction, span))
         elif instruction == "close":
             if current_s_index is not None:
                 # Encountered child to chunk
@@ -655,14 +673,12 @@ def _fix_parents(new_s_order, chunk_name):
                     current_chunk_index = span.index
                 elif is_parent:
                     open_parents.append((instruction, span))
-            else:  # "close"
-                # If chunk, check index to make sure it's the right chunk and not a nested one
-                if span.name == chunk_name and span.index == current_chunk_index:
-                    is_parent = True
-                    current_chunk_index = None
-                elif is_parent:
-                    if open_parents[-1][1] == span:
-                        open_parents.pop()
+            elif span.name == chunk_name and span.index == current_chunk_index:
+                is_parent = True
+                current_chunk_index = None
+            elif is_parent:
+                if open_parents[-1][1] == span:
+                    open_parents.pop()
         # Check next chunk: close parents in current chunk that are not part of next chunk and
         # remove already opened parents from next chunk
         if i < len(new_s_order_indices) - 1:

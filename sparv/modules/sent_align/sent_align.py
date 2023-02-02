@@ -28,13 +28,14 @@ def align_texts(sentence1, sentence2, link1, link2, sent_parents1, sent_parents2
     for linkkey1, linkid in util.read_annotation_iteritems(link1):
         linkkey2 = REVERSED_LINK2[linkid]
         if linkkey1 in SENTPARENTS1 and linkkey2 in SENTPARENTS2:
-            linkedsents1 = []
-            linkedsents2 = []
-            for sentid in SENTPARENTS1[linkkey1].split():
-                linkedsents1.append((sentid, [w for w in SENT1[sentid].split()]))
-            for sentid in SENTPARENTS2[linkkey2].split():
-                linkedsents2.append((sentid, [w for w in SENT2[sentid].split()]))
-
+            linkedsents1 = [
+                (sentid, list(SENT1[sentid].split()))
+                for sentid in SENTPARENTS1[linkkey1].split()
+            ]
+            linkedsents2 = [
+                (sentid, list(SENT2[sentid].split()))
+                for sentid in SENTPARENTS2[linkkey2].split()
+            ]
             for s1, s2 in gachalign(linkedsents1, linkedsents2, mean="gacha"):
                 linkcounter += 1
                 if s1:
@@ -45,7 +46,6 @@ def align_texts(sentence1, sentence2, link1, link2, sent_parents1, sent_parents2
                     newlink2 = util.mkEdge('link', [util.edgeStart(s2[0]), util.edgeEnd(s2[-1])])
                     OUT_SENTLINK2[newlink2] = str(linkcounter)
 
-        # annotation if a link has text in one language but is empty in the other one
         elif linkkey1 in SENTPARENTS1 or linkkey2 in SENTPARENTS2:
             linkcounter += 1
             newlink1 = util.mkEdge('link', [util.edgeStart(linkkey1), util.edgeEnd(linkkey1)])
@@ -123,12 +123,13 @@ def norm_cdf(z):
     """ Scipy's norm distribution function as of Gale-Church'srcfile (1993). """
     # Equation 26.2.17 from Abramowitz and Stegun (1964:p.932)
     t = 1 / float(1 + 0.2316419 * z)  # t = 1/(1+pz) , z=0.2316419
-    probdist = 1 - 0.3989423 * math.exp(-z * z / 2) * ((0.319381530 * t) +
-                                                       (-0.356563782 * math.pow(t, 2)) +
-                                                       (1.781477937 * math.pow(t, 3)) +
-                                                       (-1.821255978 * math.pow(t, 4)) +
-                                                       (1.330274429 * math.pow(t, 5)))
-    return probdist
+    return 1 - 0.3989423 * math.exp(-z * z / 2) * (
+        (0.319381530 * t)
+        + (-0.356563782 * math.pow(t, 2))
+        + (1.781477937 * math.pow(t, 3))
+        + (-1.821255978 * math.pow(t, 4))
+        + (1.330274429 * math.pow(t, 5))
+    )
 
 
 def norm_logsf(z):

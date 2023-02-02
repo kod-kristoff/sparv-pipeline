@@ -68,7 +68,7 @@ def write_annotation(source_file: str, annotation: BaseOutput, values, append: b
         # Get spans and associated names for annotations. We need this information to figure out which value goes to
         # which annotation.
         spans = read_annotation(source_file, annotation, with_annotation_name=True, spans=True)
-        annotation_values = {elem: [] for elem in elem_attrs.keys()}
+        annotation_values = {elem: [] for elem in elem_attrs}
 
         for value, (_, annotation_name) in zip(values, spans):
             annotation_values[annotation_name].append(value)
@@ -101,9 +101,9 @@ def _write_single_annotation(source_file: str, annotation: str, values, append: 
                     start, start_subpos = start
                 if isinstance(end, tuple):
                     end, end_subpos = end
-                start_subpos = ".{}".format(start_subpos) if start_subpos is not None else ""
-                end_subpos = ".{}".format(end_subpos) if end_subpos is not None else ""
-                value = "{}{}-{}{}".format(start, start_subpos, end, end_subpos)
+                start_subpos = f".{start_subpos}" if start_subpos is not None else ""
+                end_subpos = f".{end_subpos}" if end_subpos is not None else ""
+                value = f"{start}{start_subpos}-{end}{end_subpos}"
             elif allow_newlines:
                 # Replace line breaks with "\n"
                 value = value.replace("\\", r"\\").replace("\n", r"\n").replace("\r", "")
@@ -114,7 +114,9 @@ def _write_single_annotation(source_file: str, annotation: str, values, append: 
             ctr += 1
     # Update file modification time even if nothing was written
     os.utime(file_path, None)
-    logger.info(f"Wrote {ctr} items: {source_file + '/' if source_file else ''}{annotation}")
+    logger.info(
+        f"Wrote {ctr} items: {f'{source_file}/' if source_file else ''}{annotation}"
+    )
 
 
 def get_annotation_size(source_file: str, annotation: BaseAnnotation):
@@ -137,7 +139,11 @@ def get_annotation_size(source_file: str, annotation: BaseAnnotation):
                 count += sum(buf.count(b"\n") for buf in _generator(reader))
         except (OSError, lzma.LZMAError, UnicodeDecodeError) as e:
             # TODO: Use gzip.BadGzipFile instead of checking for "Not a gzipped file" once we require Python 3.8
-            if isinstance(e, OSError) and not ("Not a gzipped file" in str(e) or str(e) == "Invalid data stream"):
+            if (
+                isinstance(e, OSError)
+                and "Not a gzipped file" not in str(e)
+                and str(e) != "Invalid data stream"
+            ):
                 raise e
             raise_format_error(ann_file)
 
@@ -170,9 +176,12 @@ def read_annotation(source_file: str, annotation: BaseAnnotation, with_annotatio
         # Handle multiple annotations used as one
 
         # Make sure we don't have multiple attributes on the same annotation
-        assert len(annotations) == len(set(split_annotation(ann)[0]
-                                           for ann in annotations)), "Reading multiple attributes on the same " \
-                                                                     "annotation is not allowed."
+        assert len(annotations) == len(
+            {split_annotation(ann)[0] for ann in annotations}
+        ), (
+            "Reading multiple attributes on the same "
+            "annotation is not allowed."
+        )
 
         # Get iterators for all annotations
         all_annotations = {split_annotation(ann)[0]: _read_single_annotation(source_file, ann, with_annotation_name,
@@ -191,8 +200,10 @@ def read_annotation_attributes(source_file: str, annotations: Union[List[BaseAnn
                                with_annotation_name: bool = False, allow_newlines: bool = False):
     """Yield tuples of multiple attributes on the same annotation."""
     assert isinstance(annotations, (tuple, list)), "'annotations' argument must be tuple or list"
-    assert len(set(split_annotation(annotation)[0] for annotation in annotations)) == 1, "All attributes need to be " \
-                                                                                         "for the same annotation"
+    assert (
+        len({split_annotation(annotation)[0] for annotation in annotations})
+        == 1
+    ), ("All attributes need to be " "for the same annotation")
     return zip(*[read_annotation(source_file, annotation, with_annotation_name, allow_newlines)
                  for annotation in annotations])
 
@@ -213,14 +224,20 @@ def _read_single_annotation(source_file: str, annotation: str, with_annotation_n
                 elif allow_newlines:
                     # Replace literal "\n" with line break (if we allow "\n" in values)
                     value = re.sub(r"((?<!\\)(?:\\\\)*)\\n", r"\1\n", value).replace(r"\\", "\\")
-                yield value if not with_annotation_name else (value, annotation)
+                yield (value, annotation) if with_annotation_name else value
                 ctr += 1
         except (OSError, lzma.LZMAError, UnicodeDecodeError) as e:
             # TODO: Use gzip.BadGzipFile instead of checking for "Not a gzipped file" once we require Python 3.8
-            if isinstance(e, OSError) and not ("Not a gzipped file" in str(e) or str(e) == "Invalid data stream"):
+            if (
+                isinstance(e, OSError)
+                and "Not a gzipped file" not in str(e)
+                and str(e) != "Invalid data stream"
+            ):
                 raise e
             raise_format_error(ann_file)
-    logger.debug(f"Read {ctr} items: {source_file + '/' if source_file else ''}{annotation}")
+    logger.debug(
+        f"Read {ctr} items: {f'{source_file}/' if source_file else ''}{annotation}"
+    )
 
 
 def write_data(source_file: Optional[str], name: Union[BaseAnnotation, str], value: str, append: bool = False):
@@ -233,8 +250,9 @@ def write_data(source_file: Optional[str], name: Union[BaseAnnotation, str], val
         f.write(value)
     # Update file modification time even if nothing was written
     os.utime(file_path, None)
-    logger.info(f"Wrote {len(value)} bytes: {source_file + '/' if source_file else ''}"
-                f"{name.name if isinstance(name, BaseAnnotation) else name}")
+    logger.info(
+        f"Wrote {len(value)} bytes: {f'{source_file}/' if source_file else ''}{name.name if isinstance(name, BaseAnnotation) else name}"
+    )
 
 
 def read_data(source_file: Optional[str], name: Union[BaseAnnotation, str]):
@@ -246,12 +264,17 @@ def read_data(source_file: Optional[str], name: Union[BaseAnnotation, str]):
             data = f.read()
         except (OSError, lzma.LZMAError, UnicodeDecodeError) as e:
             # TODO: Use gzip.BadGzipFile instead of checking for "Not a gzipped file" once we require Python 3.8
-            if isinstance(e, OSError) and not ("Not a gzipped file" in str(e) or str(e) == "Invalid data stream"):
+            if (
+                isinstance(e, OSError)
+                and "Not a gzipped file" not in str(e)
+                and str(e) != "Invalid data stream"
+            ):
                 raise e
             raise_format_error(file_path)
 
-    logger.debug(f"Read {len(data)} bytes: {source_file + '/' if source_file else ''}"
-                 f"{name.name if isinstance(name, BaseAnnotation) else name}")
+    logger.debug(
+        f"Read {len(data)} bytes: {f'{source_file}/' if source_file else ''}{name.name if isinstance(name, BaseAnnotation) else name}"
+    )
     return data
 
 

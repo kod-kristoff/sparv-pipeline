@@ -52,14 +52,10 @@ def lemgram_sql(corpus: Corpus = Corpus(),
     mysql.delete_rows(MYSQL_TABLE, {"corpus": corpus})
     mysql.set_names()
 
-    rows = []
-    for lemgram, freq in list(result.items()):
-        rows.append({
-            "lemgram": lemgram,
-            "corpus": corpus,
-            "freq": freq
-        })
-
+    rows = [
+        {"lemgram": lemgram, "corpus": corpus, "freq": freq}
+        for lemgram, freq in list(result.items())
+    ]
     logger.info("Creating SQL")
     mysql.add_row(MYSQL_TABLE, rows)
 

@@ -57,25 +57,24 @@ def timespan_sql_with_dateinfo(corpus: Corpus = Corpus(),
             datespans[(d[0].zfill(8), d[1].zfill(8))] += len(text)
             datetimespans[(d[0].zfill(8) + d[2].zfill(6), d[1].zfill(8) + d[3].zfill(6))] += len(text)
 
-    rows_date = []
-    rows_datetime = []
-
-    for span in datespans:
-        rows_date.append({
+    rows_date = [
+        {
             "corpus": corpus_name,
             "datefrom": span[0],
             "dateto": span[1],
-            "tokens": datespans[span]
-        })
-
-    for span in datetimespans:
-        rows_datetime.append({
+            "tokens": value,
+        }
+        for span, value in datespans.items()
+    ]
+    rows_datetime = [
+        {
             "corpus": corpus_name,
             "datefrom": span[0],
             "dateto": span[1],
-            "tokens": datetimespans[span]
-        })
-
+            "tokens": value_,
+        }
+        for span, value_ in datetimespans.items()
+    ]
     create_sql(corpus_name, out, rows_date, rows_datetime)
 
 
@@ -86,11 +85,7 @@ def timespan_sql_no_dateinfo(corpus: Corpus = Corpus(),
                              token: AnnotationAllSourceFiles = AnnotationAllSourceFiles("<token>")):
     """Create timespan SQL data for use in Korp."""
     corpus_name = corpus.upper()
-    token_count = 0
-
-    for file in source_files:
-        token_count += token.get_size(file)
-
+    token_count = sum(token.get_size(file) for file in source_files)
     rows_date = [{
         "corpus": corpus_name,
         "datefrom": "0" * 8,

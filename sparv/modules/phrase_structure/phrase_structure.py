@@ -98,8 +98,9 @@ def log_output(f):
         call = f.__name__ + pprint.pformat(args + (kws, ))
         print(call)
         res = f(*args, **kws)
-        print(call + " = " + pprint.pformat(res))
+        print(f"{call} = {pprint.pformat(res)}")
         return res
+
     return g
 
 
@@ -143,7 +144,6 @@ class Token:
             self.position = int(self.ref)
             self.deprel = t[5]
             self.depheadid = t[4]
-            self.dephead = None
         else:
             self.ref = "0"
             self.position = 0
@@ -151,21 +151,14 @@ class Token:
             self.word = None
             self.pos = None
             self.msd = None
-            self.dephead = None
+        self.dephead = None
         self.deps = []
 
     def get_deps_by_rel(self, r):
-        out = []
-        for n in self.deps:
-            if n.deprel == r:
-                out.append(n)
-        return out
+        return [n for n in self.deps if n.deprel == r]
 
     def __str__(self):
-        if self.position == 0:
-            return "(ROOT)"
-        else:
-            return "WORD:" + self.word
+        return "(ROOT)" if self.position == 0 else f"WORD:{self.word}"
 
     def is_cyclic(self):
         seen = {}
@@ -183,22 +176,17 @@ class Sentence:
 
     def __init__(self, token_list):
         self.tokens = token_list
-        table = {}
-        for t in token_list:
-            table[t.ref] = t
+        table = {t.ref: t for t in token_list}
         for n in token_list:
             if n.deprel:
-                if n.depheadid:
-                    n.dephead = table[n.depheadid]
-                else:
-                    n.dephead = self.tokens[0]
+                n.dephead = table[n.depheadid] if n.depheadid else self.tokens[0]
                 n.dephead.deps.append(n)
 
     def length(self):
         return len(self.tokens)
 
     def __str__(self):
-        return "(Sen: " + str(self.tokens) + ")"
+        return f"(Sen: {str(self.tokens)})"
 
     def to_tree_str(self):
         return "\n".join([str(t) for t in self.tokens])
@@ -235,10 +223,7 @@ class Terminal:
         return str(self.t), str(self.fun), n
 
     def to_word_str(self):
-        if self.t.pos == "PM":
-            return self.t.word
-        else:
-            return self.t.word.lower()
+        return self.t.word if self.t.pos == "PM" else self.t.word.lower()
 
     def length(self):
         return 1
@@ -274,26 +259,18 @@ class Nonterminal:
     def to_tree_str(self, n=0):
         parent = (str(self.label), str(self.fun), n)
         children = [parent]
-        for c in self.children:
-            children.append((c.to_tree_str(n + 2)))
+        children.extend(c.to_tree_str(n + 2) for c in self.children)
         return children
 
     def to_word_str(self):
-        wordlist = []
-        for c in self.children:
-            wordlist.append(c.to_word_str())
+        wordlist = [c.to_word_str() for c in self.children]
         return " ".join(wordlist)
 
     def length(self):
-        out = 0
-        for c in self.children:
-            out += c.length()
-        return out
+        return sum(c.length() for c in self.children)
 
     def is_punctuation(self):
-        if len(self.children) > 1:
-            return False
-        return self.children[0].is_punctuation()
+        return False if len(self.children) > 1 else self.children[0].is_punctuation()
 
     def is_name(self):
         return False
@@ -342,24 +319,21 @@ def convert(token):
         head = Terminal("HEAD", token)
         _add_head(children, head)
         return Nonterminal(label, token.deprel, head, children)
+
     if token.position == 0:
         return Nonterminal("ROOT", "ROOT", token, children)
     elif token.deprel == "HD":
         return Terminal(token.deprel, token)
-    elif token.pos == "KN" or token.pos == "MID":
+    elif token.pos in ["KN", "MID"]:
         if children:
             lbl = _get_coord_label(children)
             return nonterminal(lbl)
         else:
             return Terminal(token.deprel, token)
-    elif token.pos == "NN" or token.pos == "PN" or token.pos == "PM":
-        if _starts_with_wh(token):
-            # "vars mamma" etc
-            return nonterminal("NP-wh")
-        else:
-            return nonterminal("NP")
+    elif token.pos in ["NN", "PN", "PM"]:
+        return nonterminal("NP-wh") if _starts_with_wh(token) else nonterminal("NP")
     elif token.pos == "PP":
-        if len(children) == 0:
+        if not children:
             return Terminal(token.deprel, token)
         if any(c.fun == "UA" for c in children):
             return nonterminal("SBAR")
@@ -369,18 +343,11 @@ def convert(token):
         else:
             return nonterminal("PrP")
     elif token.pos == "SN":
-        if len(children) > 0:
-            return nonterminal("SBAR")
-        else:
-            return Terminal(token.deprel, token)
+        return nonterminal("SBAR") if children else Terminal(token.deprel, token)
     elif token.pos == "VB":
         if _has_subject(token):
             if _starts_with_wh(token):
-                if _is_attributive_subclause(token):
-                    label = "S-wh"
-                else:
-                    # too unreliable...
-                    label = "S-wh"
+                label = "S-wh" if _is_attributive_subclause(token) else "S-wh"
             else:
                 label = "S"
         elif "IMP" in token.msd:
@@ -411,7 +378,7 @@ def convert(token):
             return nonterminal("XX")
         else:
             return Terminal(token.deprel, token)
-    elif token.pos == "JJ" or token.pos == "PC":
+    elif token.pos in ["JJ", "PC"]:
         return nonterminal("ADJP")
     elif token.pos == "AB":
         return nonterminal("ADVP")
@@ -444,17 +411,20 @@ def _get_coord_label(in_list):
     for c in in_list:
         if isinstance(c, Nonterminal) and c.fun == "CJ":
             return c.label
-    for c in in_list:
-        if c.fun == "MS" and isinstance(c, Nonterminal):
-            return c.label
-    return "XX"
+    return next(
+        (
+            c.label
+            for c in in_list
+            if c.fun == "MS" and isinstance(c, Nonterminal)
+        ),
+        "XX",
+    )
 
 
 def _has_subject(token):
-    for c in token.deps:
-        if c.deprel in ["SS", "ES", "FS"] and c.pos != "IE":
-            return True
-    return False
+    return any(
+        c.deprel in ["SS", "ES", "FS"] and c.pos != "IE" for c in token.deps
+    )
 
 
 # def _is_finite(token):
@@ -462,10 +432,7 @@ def _has_subject(token):
 
 
 def _find_first_by_pos(deps, pos):
-    for d in deps:
-        if d.pos == pos:
-            return d
-    return None
+    return next((d for d in deps if d.pos == pos), None)
 
 
 def _starts_with_wh(token):
@@ -482,17 +449,14 @@ def _is_attributive_subclause(token):
     # they are often inconsistently handled by MaltParser...
     if token.deprel == "ET":
         return True
-    for c in token.deps:
-        if c.pos[0] == "H" and c.word.lower() == "som":
-            return True
-    return False
+    return any(c.pos[0] == "H" and c.word.lower() == "som" for c in token.deps)
 
 
 def _wh_after_prep(token):
-    for c in token.deps:
-        if c.pos == "HP" and c.position > token.position and len(c.deps) == 0:
-            return True
-    return False
+    return any(
+        c.pos == "HP" and c.position > token.position and len(c.deps) == 0
+        for c in token.deps
+    )
 
 
 def _sort_by_head_pos(in_list):

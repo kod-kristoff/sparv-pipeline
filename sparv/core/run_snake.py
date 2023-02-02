@@ -83,7 +83,6 @@ if use_preloader:
             sock.close()
 
 if not use_preloader:
-    # Import custom module
     if module_name.startswith(custom_name):
         name = module_name[len(custom_name) + 1:]
         module_path = paths.corpus_dir.resolve() / f"{name}.py"
@@ -96,9 +95,8 @@ if not use_preloader:
             module = importlib.import_module(".".join((modules_path, module_name)))
         except ModuleNotFoundError:
             # Try to find plugin module
-            entry_points = dict((e.name, e) for e in iter_entry_points(f"sparv.{plugin_name}"))
-            entry_point = entry_points.get(module_name)
-            if entry_point:
+            entry_points = {e.name: e for e in iter_entry_points(f"sparv.{plugin_name}")}
+            if entry_point := entry_points.get(module_name):
                 entry_point.load()
             else:
                 exit_with_error_message(
@@ -115,13 +113,17 @@ log_handler.setup_logging(snakemake.config["log_server"],
                           file=snakemake.params.source_file,
                           job=f"{module_name}:{f_name}")
 logger = logging.getLogger("sparv")
-logger.info("RUN: %s:%s(%s)", module_name, f_name, ", ".join("%s=%s" % (i[0], repr(i[1])) for i in
-                                                             list(parameters.items())))
+logger.info(
+    "RUN: %s:%s(%s)",
+    module_name,
+    f_name,
+    ", ".join(f"{i[0]}={repr(i[1])}" for i in list(parameters.items())),
+)
 
 # Redirect any prints to logging module
 old_stdout = sys.stdout
 old_stderr = sys.stderr
-module_logger = logging.getLogger("sparv.modules." + module_name)
+module_logger = logging.getLogger(f"sparv.modules.{module_name}")
 sys.stdout = StreamToLogger(module_logger)
 sys.stderr = StreamToLogger(module_logger, logging.WARNING)
 
@@ -137,7 +139,7 @@ if not use_preloader:
         # Any exception raised here would be printed directly to the terminal, due to how Snakemake runs the script.
         # Instead, we log the error message and exit with a non-zero status to signal to Snakemake that
         # something went wrong.
-        exit_with_error_message(e.message, "sparv.modules." + module_name)
+        exit_with_error_message(e.message, f"sparv.modules.{module_name}")
     except Exception as e:
         errmsg = f"An error occurred while executing {module_name}:{f_name}:"
         if logger.level > logging.DEBUG:
@@ -155,9 +157,9 @@ else:
         preload.send_data(sock, (f"{module_name}:{f_name}", parameters, snakemake.config, snakemake.params.source_file))
         response = preload.receive_data(sock)
         if isinstance(response, SparvErrorMessage):
-            exit_with_error_message(response.message, "sparv.modules." + module_name)
+            exit_with_error_message(response.message, f"sparv.modules.{module_name}")
         elif isinstance(response, BaseException):
-            exit_with_error_message(str(response), "sparv.modules." + module_name)
+            exit_with_error_message(str(response), f"sparv.modules.{module_name}")
         elif response is not True:
             exit_with_error_message("An error occurred while using the Sparv preloader.",
                                     f"sparv.modules.{module_name}")

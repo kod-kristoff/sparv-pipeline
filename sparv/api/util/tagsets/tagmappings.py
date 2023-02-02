@@ -48,10 +48,7 @@ TAGSEP = "."
 def split_tag(tag, sep=TAGSEP):
     """Split a tag "X.Y.Z" into a tuple ("X", "Y.Z")."""
     pos_msd = tag.split(sep, 1)
-    if len(pos_msd) == 1:
-        return pos_msd[0], ""
-    else:
-        return pos_msd
+    return (pos_msd[0], "") if len(pos_msd) == 1 else pos_msd
 
 
 def join_tag(tag, sep=TAGSEP):
@@ -59,10 +56,7 @@ def join_tag(tag, sep=TAGSEP):
 
     The tag can be a dict {"pos": pos, "msd": msd} or a tuple (pos, msd).
     """
-    if isinstance(tag, dict):
-        pos, msd = tag["pos"], tag["msd"]
-    else:
-        pos, msd = tag
+    pos, msd = (tag["pos"], tag["msd"]) if isinstance(tag, dict) else tag
     return pos + sep + msd if msd else pos
 
 
@@ -1223,19 +1217,25 @@ granska_to_parole = {
     "uo": "XF",
 }
 
-parole_to_suc = dict((parole, suc) for (suc, parole) in list(suc_to_parole.items()))
+parole_to_suc = {parole: suc for (suc, parole) in list(suc_to_parole.items())}
 
-granska_to_suc = dict((granska, parole_to_suc[parole]) for (granska, parole) in list(granska_to_parole.items()))
+granska_to_suc = {
+    granska: parole_to_suc[parole]
+    for (granska, parole) in list(granska_to_parole.items())
+}
 
 parole_to_granska = {}
 for granska, parole in list(granska_to_parole.items()):
     parole_to_granska.setdefault(parole, set()).add(granska)
 
-suc_to_granska = dict((suc, parole_to_granska[parole]) for (suc, parole) in list(suc_to_parole.items()))
+suc_to_granska = {
+    suc: parole_to_granska[parole]
+    for (suc, parole) in list(suc_to_parole.items())
+}
 
 suc_tags = set(suc_descriptions)
 
-suc_to_simple = dict((suc, split_tag(suc)[0]) for suc in suc_tags)
+suc_to_simple = {suc: split_tag(suc)[0] for suc in suc_tags}
 
 simple_tags = set(suc_to_simple.values())
 
@@ -1359,14 +1359,13 @@ def _make_saldo_to_suc(compound=False):
     tagmap = {}
     for saldotag in saldo_tags:
         params = saldotag.split()
-        if not compound:
-            if saldotag.endswith((" c", " ci", " cm")) or not params or (len(params[0]) == 3 and params[0].endswith(("m", "h"))):
-                # Skip multiword units and compound/end syllables
-                continue
-        else:
+        if compound:
             if not params or (len(params[0]) == 3 and params[0].endswith("m")):
                 # Skip multiword units
                 continue
+        elif saldotag.endswith((" c", " ci", " cm")) or not params or (len(params[0]) == 3 and params[0].endswith(("m", "h"))):
+            # Skip multiword units and compound/end syllables
+            continue
         paramstr = " ".join(saldo_params_to_suc.get(prm, prm.upper()) for prm in params)
         for (pre, post) in _suc_tag_replacements:
             m = re.match(pre, paramstr)
@@ -1376,21 +1375,26 @@ def _make_saldo_to_suc(compound=False):
             print(paramstr)
             print()
         sucfilter = m.expand(post).replace(" ", r"\.").replace("+", r"\+")
-        tagmap[saldotag] = set(suctag for suctag in suc_tags
-                               if re.match(sucfilter, suctag))
+        tagmap[saldotag] = {
+            suctag for suctag in suc_tags if re.match(sucfilter, suctag)
+        }
     return tagmap
 
 
 saldo_to_suc = _make_saldo_to_suc()
 saldo_to_suc_compound = _make_saldo_to_suc(compound=True)  # For use with the compound module
 
-saldo_to_parole = dict((saldotag, set(suc_to_parole[suctag] for suctag in suctags))
-                       for saldotag, suctags in list(saldo_to_suc.items()))
+saldo_to_parole = {
+    saldotag: {suc_to_parole[suctag] for suctag in suctags}
+    for saldotag, suctags in list(saldo_to_suc.items())
+}
 
-saldo_to_granska = dict((saldotag, set().union(*(suc_to_granska[suctag] for suctag in suctags)))
-                        for saldotag, suctags in list(saldo_to_suc.items()))
+saldo_to_granska = {
+    saldotag: set().union(*(suc_to_granska[suctag] for suctag in suctags))
+    for saldotag, suctags in list(saldo_to_suc.items())
+}
 
-saldo_to_saldo = dict((saldotag, {saldotag}) for saldotag in saldo_tags)
+saldo_to_saldo = {saldotag: {saldotag} for saldotag in saldo_tags}
 
 
 mappings = {

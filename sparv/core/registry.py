@@ -160,17 +160,16 @@ def _get_module_name(module_string: str) -> str:
     """Extract module name from dotted path, i.e. 'modulename.submodule' -> 'modulename'."""
     if module_string.startswith(modules_path):
         # Built-in Sparv module
-        module_name = module_string[len(modules_path) + 1:].split(".")[0]
+        return module_string[len(modules_path) + 1:].split(".")[0]
     elif module_string.startswith(core_modules_path):
         # Built-in Sparv core module
-        module_name = module_string[len(core_modules_path) + 1:].split(".")[0]
+        return module_string[len(core_modules_path) + 1:].split(".")[0]
     elif module_string.split(".")[0] == custom_name:
         # Custom user module
-        module_name = module_string
+        return module_string
     else:
         # External plugin
-        module_name = module_string.split(".")[0]
-    return module_name
+        return module_string.split(".")[0]
 
 
 def _annotator(description: str, a_type: Annotator, name: Optional[str] = None, file_extension: Optional[str] = None,
@@ -291,7 +290,7 @@ def modelbuilder(description: str, name: Optional[str] = None, config: Optional[
 def _add_to_registry(annotator):
     """Add function to annotator registry. Used by annotator."""
     module_name = annotator["module_name"]
-    f_name = annotator["function"].__name__ if not annotator["name"] else annotator["name"]
+    f_name = annotator["name"] or annotator["function"].__name__
     rule_name = f"{module_name}:{f_name}"
 
     if annotator["language"]:
@@ -316,10 +315,14 @@ def _add_to_registry(annotator):
             handle_config(c, module_name, rule_name)
 
     # Handle text annotation for selected importer
-    if annotator["type"] == Annotator.importer and rule_name == sparv_config.get("import.importer"):
-        if annotator["text_annotation"] and not sparv_config.get("classes.text"):
-            sparv_config.set_value("import.text_annotation", annotator["text_annotation"])
-            sparv_config.handle_text_annotation()
+    if (
+        annotator["type"] == Annotator.importer
+        and rule_name == sparv_config.get("import.importer")
+        and annotator["text_annotation"]
+        and not sparv_config.get("classes.text")
+    ):
+        sparv_config.set_value("import.text_annotation", annotator["text_annotation"])
+        sparv_config.handle_text_annotation()
 
     has_marker = False  # Needed by installers and uninstallers
 
@@ -328,21 +331,18 @@ def _add_to_registry(annotator):
             if not has_marker and val.annotation == OutputMarker:
                 has_marker = True
             ann = val.default
-            cls = val.default.cls
             ann_name, attr = ann.split()
 
             # Make sure annotation names include module names as prefix
-            if not attr:
-                if not ann_name.startswith(module_name + "."):
-                    raise SparvErrorMessage(f"Output annotation '{ann_name}' in module '{module_name}' doesn't include "
-                                            "module name as prefix.")
-            else:
-                if not attr.startswith(module_name + "."):
+            if attr:
+                if not attr.startswith(f"{module_name}."):
                     raise SparvErrorMessage(f"Output annotation '{ann}' in module '{module_name}' doesn't include "
                                             "module name as prefix in attribute.")
 
-            # Add to class registry
-            if cls:
+            elif not ann_name.startswith(f"{module_name}."):
+                raise SparvErrorMessage(f"Output annotation '{ann_name}' in module '{module_name}' doesn't include "
+                                        "module name as prefix.")
+            if cls := val.default.cls:
                 cls_target = None
                 if ":" in cls and not cls.startswith(":") and ann_name and attr:
                     cls_target = ann.name
@@ -351,24 +351,34 @@ def _add_to_registry(annotator):
                 elif ":" not in cls:
                     cls_target = ann_name
                 else:
-                    print("Malformed class name: '{}'".format(cls))
+                    print(f"Malformed class name: '{cls}'")
 
                 if cls_target:
-                    if not annotator["language"]:
-                        if cls_target not in all_module_classes[None][cls]:
-                            all_module_classes[None][cls].append(cls_target)
-                    else:
+                    if annotator["language"]:
                         for language in annotator["language"]:
                             if cls_target not in all_module_classes[language][cls]:
                                 all_module_classes[language][cls].append(cls_target)
 
+                    elif cls_target not in all_module_classes[None][cls]:
+                        all_module_classes[None][cls].append(cls_target)
                     # Only add classes for relevant languages
-                    if not annotator["language"] or (
-                        annotator["language"] and sparv_config.get("metadata.language")
-                            and check_language(sparv_config.get("metadata.language"), annotator["language"],
-                                               sparv_config.get("metadata.variety"))):
-                        if cls_target not in annotation_classes["module_classes"][cls]:
-                            annotation_classes["module_classes"][cls].append(cls_target)
+                    if (
+                        not annotator["language"]
+                        or (
+                            annotator["language"]
+                            and sparv_config.get("metadata.language")
+                            and check_language(
+                                sparv_config.get("metadata.language"),
+                                annotator["language"],
+                                sparv_config.get("metadata.variety"),
+                            )
+                        )
+                    ) and cls_target not in annotation_classes[
+                        "module_classes"
+                    ][
+                        cls
+                    ]:
+                        annotation_classes["module_classes"][cls].append(cls_target)
 
         elif isinstance(val.default, ModelOutput):
             modeldir = val.default.name.split("/")[0]
@@ -385,7 +395,10 @@ def _add_to_registry(annotator):
                 raise SparvErrorMessage(f"Illegal export path for export '{val.default}' in module '{module_name}'. "
                                         "A subdirectory must be used.")
             export_dir = val.default.split("/")[0]
-            if not (export_dir.startswith(module_name + ".") or export_dir == module_name):
+            if (
+                not export_dir.startswith(f"{module_name}.")
+                and export_dir != module_name
+            ):
                 raise SparvErrorMessage(f"Illegal export path for export '{val.default}' in module '{module_name}'. "
                                         "The export subdirectory must include the module name as prefix.")
 
@@ -396,8 +409,9 @@ def _add_to_registry(annotator):
     if module_name not in modules:
         modules[module_name] = Module(module_name)
     if f_name in modules[module_name].functions:
-        print("Annotator function '{}' collides with other function with same name in module '{}'.".format(f_name,
-                                                                                                           module_name))
+        print(
+            f"Annotator function '{f_name}' collides with other function with same name in module '{module_name}'."
+        )
     else:
         del annotator["module_name"]
         del annotator["name"]
@@ -423,7 +437,7 @@ def find_implicit_classes() -> None:
 
 def handle_config(cfg, module_name, rule_name: Optional[str] = None) -> None:
     """Handle Config instances."""
-    if not cfg.name.startswith(module_name + "."):
+    if not cfg.name.startswith(f"{module_name}."):
         raise SparvErrorMessage(f"Config option '{cfg.name}' in module '{module_name}' doesn't include module "
                                 "name as prefix.")
     # Check that config variable hasn't already been declared
@@ -459,20 +473,23 @@ def _expand_class(cls):
 
 def find_config_variables(string, match_objects: bool = False):
     """Find all config variables in a string and return a list of strings or match objects."""
-    if match_objects:
-        result = list(re.finditer(r"\[([^\]=[]+)(?:=([^\][]+))?\]", string))
-    else:
-        result = [c.group()[1:-1] for c in re.finditer(r"\[([^\]=[]+)(?:=([^\][]+))?\]", string)]
-    return result
+    return (
+        list(re.finditer(r"\[([^\]=[]+)(?:=([^\][]+))?\]", string))
+        if match_objects
+        else [
+            c.group()[1:-1]
+            for c in re.finditer(r"\[([^\]=[]+)(?:=([^\][]+))?\]", string)
+        ]
+    )
 
 
 def find_classes(string, match_objects: bool = False):
     """Find all class references in a string and return a list of strings or match objects."""
-    if match_objects:
-        result = list(re.finditer(r"<([^>]+)>", string))
-    else:
-        result = [c.group()[1:-1] for c in re.finditer(r"<([^>]+)>", string)]
-    return result
+    return (
+        list(re.finditer(r"<([^>]+)>", string))
+        if match_objects
+        else [c.group()[1:-1] for c in re.finditer(r"<([^>]+)>", string)]
+    )
 
 
 def expand_variables(string, rule_name: Optional[str] = None, is_annotation: bool = False) -> Tuple[str, List[str]]:
@@ -490,12 +507,7 @@ def expand_variables(string, rule_name: Optional[str] = None, is_annotation: boo
     """
     rest = []
 
-    if is_annotation:
-        # Split if list of alternatives
-        strings = string.split(", ")
-    else:
-        strings = [string]
-
+    strings = string.split(", ") if is_annotation else [string]
     for i, string in enumerate(strings):
         # Convert config keys to config values
         while True:
@@ -529,8 +541,7 @@ def expand_variables(string, rule_name: Optional[str] = None, is_annotation: boo
             if not clss:
                 break
             for cls in clss:
-                real_ann = _expand_class(cls.group(1))
-                if real_ann:
+                if real_ann := _expand_class(cls.group(1)):
                     string = string.replace(cls.group(), real_ann)
                 else:
                     rest.append(cls.group())
@@ -539,10 +550,16 @@ def expand_variables(string, rule_name: Optional[str] = None, is_annotation: boo
                 continue
             break
 
-        if is_annotation and len(strings) > 1:
-            # If multiple alternative annotations, return the first one that is explicitly used, or the last
-            if string in explicit_annotations or clss and set(clss).intersection(explicit_annotations):
-                break
+        if (
+            is_annotation
+            and len(strings) > 1
+            and (
+                string in explicit_annotations
+                or clss
+                and set(clss).intersection(explicit_annotations)
+            )
+        ):
+            break
 
     return string, rest
 
@@ -559,10 +576,7 @@ def get_type_hint_type(type_hint):
     if origin in (list, List, tuple, Tuple):
         is_list = True
         args = typing_inspect.get_args(type_hint)
-        if args and not type(args[0]) == TypeVar:
-            type_ = args[0]
-        else:
-            type_ = origin
+        type_ = args[0] if args and type(args[0]) != TypeVar else origin
     else:
         type_ = type_hint
 
@@ -575,5 +589,5 @@ def check_language(corpus_lang: str, langs: List[str], corpus_lang_suffix: Optio
     Any suffix on corpus_lang will be ignored.
     """
     if corpus_lang_suffix:
-        corpus_lang = corpus_lang + "-" + corpus_lang_suffix
+        corpus_lang = f"{corpus_lang}-{corpus_lang_suffix}"
     return corpus_lang in langs or corpus_lang.split("-")[0] in langs

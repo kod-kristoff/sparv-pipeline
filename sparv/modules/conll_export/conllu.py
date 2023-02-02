@@ -87,15 +87,12 @@ def conllu(source_file: SourceFilename = SourceFilename(),
             if span.name == token_name:
                 csv_data.append(_make_conll_token_line(conll_fields, token_name, annotation_dict, span.index))
 
-            # Create line with structural annotation
             else:
                 attrs = _make_attrs(span.name, annotation_dict, export_names, span.index)
-                for attr in attrs:
-                    csv_data.append(f"# {attr}")
+                csv_data.extend(f"# {attr}" for attr in attrs)
                 if not attrs:
                     csv_data.append(f"# {span.export}")
 
-        # Insert blank line after each closing sentence
         elif span.name == sentence.name and instruction == "close":
             csv_data.append("")
 
@@ -137,5 +134,5 @@ def _make_attrs(annotation, annotation_dict, export_names, index):
         annotation_name = export_names.get(annotation, annotation)
         if annotation_name == "sentence":
             annotation_name = "sent"
-        attrs.append("%s_%s = %s" % (annotation_name, export_name, annot[index]))
+        attrs.append(f"{annotation_name}_{export_name} = {annot[index]}")
     return attrs

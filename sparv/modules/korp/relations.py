@@ -94,7 +94,7 @@ def relations(out: OutputData = OutputData("korp.relations"),
 
             tokens[token_index] = this
 
-            if not token_dh == "-":
+            if token_dh != "-":
                 token_dh = int(token_dh)
                 # This token is looking for a head (token is not root)
                 dep_triple = (token_dr, this)
@@ -118,7 +118,7 @@ def relations(out: OutputData = OutputData("korp.relations"),
         assert not incomplete, "incomplete is not empty"
 
         def _match(pattern, value):
-            return bool(re.match(r"^%s$" % pattern, value))
+            return bool(re.match(f"^{pattern}$", value))
 
         def _findrel(head, rel, dep):
             result = []
@@ -162,8 +162,16 @@ def relations(out: OutputData = OutputData("korp.relations"),
 
                             pp = rel[-1]
                             if len(list(lookup.keys())) > 3:
-                                lookup_bf = dict((key, val["bf"]) for key, val in list(lookup.items()) if isinstance(val, dict))
-                                lookup_ref = dict((key, val["ref"]) for key, val in list(lookup.items()) if isinstance(val, dict))
+                                lookup_bf = {
+                                    key: val["bf"]
+                                    for key, val in list(lookup.items())
+                                    if isinstance(val, dict)
+                                }
+                                lookup_ref = {
+                                    key: val["ref"]
+                                    for key, val in list(lookup.items())
+                                    if isinstance(val, dict)
+                                }
                                 triple = (
                                     (lookup[str(pp[0])]["lemgram"], lookup[str(pp[0])]["word"],
                                      lookup[str(pp[0])]["pos"], lookup[str(pp[0])]["ref"]),
@@ -238,7 +246,7 @@ def _mutate_triple(triple):
                     pass
 
     if extra[0].startswith("|") and extra[0].endswith("|"):
-        extra = [e for e in sorted([x for x in extra[0].split("|") if x], key=len)]
+        extra = list(sorted([x for x in extra[0].split("|") if x], key=len))
         extra = extra[0] if extra else ""
     else:
         extra = extra[0]
@@ -285,7 +293,7 @@ def relations_sql(corpus: Corpus = Corpus(),
         split: when set to true leads to SQL commands being split into several parts, requiring less memory during
             creation, but installing the data will take much longer
     """
-    db_table = MYSQL_TABLE + "_" + corpus.upper()
+    db_table = f"{MYSQL_TABLE}_{corpus.upper()}"
 
     # Relations that will be grouped together
     rel_grouping = {
@@ -331,11 +339,11 @@ def relations_sql(corpus: Corpus = Corpus(),
             head, headpos, rel, dep, deppos, extra, sid, refh, refd, bfhead, bfdep, wfhead, wfdep = triple.split(u"\t")
             bfhead, bfdep, wfhead, wfdep = int(bfhead), int(bfdep), int(wfhead), int(wfdep)
 
-            if not (head, headpos) in strings:
+            if (head, headpos) not in strings:
                 string_index += 1
             head = strings.setdefault((head, headpos), string_index)
 
-            if not (dep, deppos, extra) in strings:
+            if (dep, deppos, extra) not in strings:
                 string_index += 1
             dep = strings.setdefault((dep, deppos, extra), string_index)
 
@@ -368,8 +376,7 @@ def relations_sql(corpus: Corpus = Corpus(),
             if (bfhead and bfdep) or wfdep:
                 dep_rel_count[(dep, rel)] += 1
 
-        # If not the last file
-        if not file_count == len(source_files):
+        if file_count != len(source_files):
             if split:
                 # Don't print string table until the last file
                 _write_sql({}, sentences, freq, rel_count, head_rel_count, dep_rel_count, out, db_table, split,
@@ -391,7 +398,7 @@ def relations_sql(corpus: Corpus = Corpus(),
 def _write_sql(strings, sentences, freq, rel_count, head_rel_count, dep_rel_count, sql_file, db_table,
                split=False, first=False, last=False):
 
-    temp_db_table = "temp_" + db_table
+    temp_db_table = f"temp_{db_table}"
     update_freq = "ON DUPLICATE KEY UPDATE freq = freq + VALUES(freq)" if split else ""
 
     mysql = MySQL(output=sql_file, append=True)
@@ -403,13 +410,19 @@ def _write_sql(strings, sentences, freq, rel_count, head_rel_count, dep_rel_coun
             del MYSQL_HEAD_REL["constraints"]
             del MYSQL_DEP_REL["constraints"]
         mysql.create_table(temp_db_table, drop=True, **MYSQL_RELATIONS)
-        mysql.create_table(temp_db_table + "_strings", drop=True, **MYSQL_STRINGS)
-        mysql.create_table(temp_db_table + "_rel", drop=True, **MYSQL_REL)
-        mysql.create_table(temp_db_table + "_head_rel", drop=True, **MYSQL_HEAD_REL)
-        mysql.create_table(temp_db_table + "_dep_rel", drop=True, **MYSQL_DEP_REL)
-        mysql.create_table(temp_db_table + "_sentences", drop=True, **MYSQL_SENTENCES)
-        mysql.disable_keys(temp_db_table, temp_db_table + "_strings", temp_db_table + "_rel",
-                           temp_db_table + "_head_rel", temp_db_table + "_dep_rel", temp_db_table + "_sentences")
+        mysql.create_table(f"{temp_db_table}_strings", drop=True, **MYSQL_STRINGS)
+        mysql.create_table(f"{temp_db_table}_rel", drop=True, **MYSQL_REL)
+        mysql.create_table(f"{temp_db_table}_head_rel", drop=True, **MYSQL_HEAD_REL)
+        mysql.create_table(f"{temp_db_table}_dep_rel", drop=True, **MYSQL_DEP_REL)
+        mysql.create_table(f"{temp_db_table}_sentences", drop=True, **MYSQL_SENTENCES)
+        mysql.disable_keys(
+            temp_db_table,
+            f"{temp_db_table}_strings",
+            f"{temp_db_table}_rel",
+            f"{temp_db_table}_head_rel",
+            f"{temp_db_table}_dep_rel",
+            f"{temp_db_table}_sentences",
+        )
         mysql.disable_checks()
         mysql.set_names()
 
@@ -428,7 +441,7 @@ def _write_sql(strings, sentences, freq, rel_count, head_rel_count, dep_rel_coun
             "pos": pos}
         rows.append(row)
 
-    mysql.add_row(temp_db_table + "_strings", rows, "")
+    mysql.add_row(f"{temp_db_table}_strings", rows, "")
 
     sentence_rows = []
     rows = []
@@ -459,7 +472,7 @@ def _write_sql(strings, sentences, freq, rel_count, head_rel_count, dep_rel_coun
             "freq": freq}
         rows.append(row)
 
-    mysql.add_row(temp_db_table + "_rel", rows, update_freq)
+    mysql.add_row(f"{temp_db_table}_rel", rows, update_freq)
 
     rows = []
     for head_rel, freq in sorted(head_rel_count.items()):
@@ -470,7 +483,7 @@ def _write_sql(strings, sentences, freq, rel_count, head_rel_count, dep_rel_coun
             "freq": freq}
         rows.append(row)
 
-    mysql.add_row(temp_db_table + "_head_rel", rows, update_freq)
+    mysql.add_row(f"{temp_db_table}_head_rel", rows, update_freq)
 
     rows = []
     for dep_rel, freq in sorted(dep_rel_count.items()):
@@ -481,7 +494,7 @@ def _write_sql(strings, sentences, freq, rel_count, head_rel_count, dep_rel_coun
             "freq": freq}
         rows.append(row)
 
-    mysql.add_row(temp_db_table + "_dep_rel", rows, update_freq)
+    mysql.add_row(f"{temp_db_table}_dep_rel", rows, update_freq)
 
     for index, sentenceset in sorted(sentences.items()):
         for sentence in sorted(sentenceset):
@@ -493,21 +506,35 @@ def _write_sql(strings, sentences, freq, rel_count, head_rel_count, dep_rel_coun
             }
             sentence_rows.append(srow)
 
-    mysql.add_row(temp_db_table + "_sentences", sentence_rows)
+    mysql.add_row(f"{temp_db_table}_sentences", sentence_rows)
 
     if last:
-        mysql.enable_keys(temp_db_table, temp_db_table + "_strings", temp_db_table + "_rel",
-                          temp_db_table + "_head_rel", temp_db_table + "_dep_rel", temp_db_table + "_sentences")
-        mysql.drop_table(db_table, db_table + "_strings", db_table + "_rel", db_table + "_head_rel",
-                         db_table + "_dep_rel", db_table + "_sentences")
-        mysql.rename_table({
-            temp_db_table: db_table,
-            temp_db_table + "_strings": db_table + "_strings",
-            temp_db_table + "_rel": db_table + "_rel",
-            temp_db_table + "_head_rel": db_table + "_head_rel",
-            temp_db_table + "_dep_rel": db_table + "_dep_rel",
-            temp_db_table + "_sentences": db_table + "_sentences"
-        })
+        mysql.enable_keys(
+            temp_db_table,
+            f"{temp_db_table}_strings",
+            f"{temp_db_table}_rel",
+            f"{temp_db_table}_head_rel",
+            f"{temp_db_table}_dep_rel",
+            f"{temp_db_table}_sentences",
+        )
+        mysql.drop_table(
+            db_table,
+            f"{db_table}_strings",
+            f"{db_table}_rel",
+            f"{db_table}_head_rel",
+            f"{db_table}_dep_rel",
+            f"{db_table}_sentences",
+        )
+        mysql.rename_table(
+            {
+                temp_db_table: db_table,
+                f"{temp_db_table}_strings": f"{db_table}_strings",
+                f"{temp_db_table}_rel": f"{db_table}_rel",
+                f"{temp_db_table}_head_rel": f"{db_table}_head_rel",
+                f"{temp_db_table}_dep_rel": f"{db_table}_dep_rel",
+                f"{temp_db_table}_sentences": f"{db_table}_sentences",
+            }
+        )
 
         mysql.enable_checks()
 
@@ -518,7 +545,7 @@ def _write_sql(strings, sentences, freq, rel_count, head_rel_count, dep_rel_coun
 
 # Names of every possible relation in the resulting database
 RELNAMES = ["SS", "OBJ", "ADV", "AA", "AT", "ET", "PA"]
-rel_enum = "ENUM(%s)" % ", ".join("'%s'" % r for r in RELNAMES)
+rel_enum = f"""ENUM({", ".join(f"'{r}'" for r in RELNAMES)})"""
 
 MYSQL_TABLE = "relations"
 

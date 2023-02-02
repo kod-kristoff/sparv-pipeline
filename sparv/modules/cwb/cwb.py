@@ -87,7 +87,8 @@ def vrt_scrambled(source_file: SourceFilename = SourceFilename(),
                        "the source text. Make sure to add <token> to the list of export annotations.")
     if chunk not in annotation_list:
         raise SparvErrorMessage(
-            "The annotation used for scrambling ({}) needs to be included in the output.".format(chunk))
+            f"The annotation used for scrambling ({chunk}) needs to be included in the output."
+        )
     span_positions, annotation_dict = util.export.gather_annotations(annotation_list, export_names,
                                                                      source_file=source_file, split_overlaps=True)
     logger.progress()
@@ -189,14 +190,17 @@ def cwb_encode(corpus, annotations, source_annotations, source_files, words, vrt
         keep_struct_names=True)
 
     # Get VRT columns
-    token_attributes = [(token_name + ":" + i) for i in token_attributes]
+    token_attributes = [f"{token_name}:{i}" for i in token_attributes]
     # First column must be called "word"
     token_attributes[0] = "word"
     columns = [cwb_escape(export_names.get(i, i)) for i in token_attributes]
 
     # Get VRT structs
-    struct_annotations = [cwb_escape(export_names.get(a.name, a.name)) for a in annotation_list if
-                          not a.annotation_name == token_name]
+    struct_annotations = [
+        cwb_escape(export_names.get(a.name, a.name))
+        for a in annotation_list
+        if a.annotation_name != token_name
+    ]
     structs = parse_structural_attributes(struct_annotations)
 
     data_dir = Path(out_marker).resolve().parent
@@ -223,9 +227,9 @@ def cwb_encode(corpus, annotations, source_annotations, source_files, words, vrt
     for struct, attrs in structs:
         attrs2 = "+".join(attrs)
         if attrs2:
-            attrs2 = "+" + attrs2
+            attrs2 = f"+{attrs2}"
         # ":0" is added to the s-attribute name to enable nesting support in cwb-encode
-        encode_args += ["-S", "%s:0%s" % (struct, attrs2)]
+        encode_args += ["-S", f"{struct}:0{attrs2}"]
 
     _, stderr = util.system.call_binary(os.path.join(bin_path, "cwb-encode"), encode_args)
     if stderr:
@@ -268,19 +272,19 @@ def cwb_align(corpus, other, link, aligndir="annotations/align", bin_path="",
               encoding: str = Config("cwb.encoding", "utf8")):
     """Align 'corpus' with 'other' corpus, using the 'link' annotation for alignment."""
     os.makedirs(aligndir, exist_ok=True)
-    alignfile = os.path.join(aligndir, corpus + ".align")
+    alignfile = os.path.join(aligndir, f"{corpus}.align")
     logger.info("Aligning %s <-> %s", corpus, other)
 
     try:
         [(link_name, [(link_attr, _path)])] = parse_structural_attributes(link)
     except ValueError:
         raise ValueError("You have to specify exactly one alignment link.")
-    link_attr = link_name + "_" + link_attr
+    link_attr = f"{link_name}_{link_attr}"
 
     # Align linked chunks
     args = ["-v", "-o", alignfile, "-V", link_attr, corpus, other, link_name]
     result, _ = util.system.call_binary(os.path.join(bin_path, "cwb-align"), args, encoding=encoding)
-    with open(alignfile + ".result", "w", encoding="utf-8") as F:
+    with open(f"{alignfile}.result", "w", encoding="utf-8") as F:
         print(result, file=F)
     _, lastline = result.rsplit("Alignment complete.", 1)
     logger.info("%s", lastline.strip())
@@ -292,7 +296,7 @@ def cwb_align(corpus, other, link, aligndir="annotations/align", bin_path="",
     # cwb-regedit is not installed by default, so we skip it and modify the regfile directly instead:
     regfile = os.path.join(os.environ["CORPUS_REGISTRY"], corpus)
     with open(regfile, encoding="utf-8") as F:
-        skip_align = ("ALIGNED %s" % other) in F.read()
+        skip_align = f"ALIGNED {other}" in F.read()
 
     if not skip_align:
         with open(regfile, "a", encoding="utf-8") as F:
@@ -324,19 +328,18 @@ def create_vrt(span_positions, token_name: str, word_annotation, token_attribute
             vrt_lines.append(make_token_line(word_annotation[span.index], token_name, token_attributes, annotation_dict,
                                              span.index))
 
-        # Create line with structural annotation
         elif span.name != token_name:
             cwb_span_name = cwb_escape(span.export)
             # Open structural element
             if instruction == "open":
-                attrs = make_attr_str(span.name, annotation_dict, export_names, span.index)
-                if attrs:
-                    vrt_lines.append("<%s %s>" % (cwb_span_name, attrs))
+                if attrs := make_attr_str(
+                    span.name, annotation_dict, export_names, span.index
+                ):
+                    vrt_lines.append(f"<{cwb_span_name} {attrs}>")
                 else:
-                    vrt_lines.append("<%s>" % cwb_span_name)
-            # Close element
+                    vrt_lines.append(f"<{cwb_span_name}>")
             else:
-                vrt_lines.append("</%s>" % cwb_span_name)
+                vrt_lines.append(f"</{cwb_span_name}>")
 
     return "\n".join(vrt_lines)
 
@@ -349,7 +352,7 @@ def make_attr_str(annotation, annotation_dict, export_names, index):
         export_name = cwb_escape(export_name)
         # Escape special characters in value
         value = annot[index].replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
-        attrs.append('%s="%s"' % (export_name, value))
+        attrs.append(f'{export_name}="{value}"')
     return " ".join(attrs)
 
 
@@ -404,10 +407,9 @@ def truncateset(string, maxlength=4095, delimiter="|", affix="|", encoding="UTF-
     """Truncate a Corpus Workbench set to a maximum length."""
     if len(string) <= maxlength or string == "|":
         return string
-    else:
-        length = 1  # Including the last affix
-        values = string[1:-1].split("|")
-        for i, value in enumerate(values):
-            length += len(value.encode(encoding)) + 1
-            if length > maxlength:
-                return util.misc.cwbset(values[:i], delimiter, affix)
+    length = 1  # Including the last affix
+    values = string[1:-1].split("|")
+    for i, value in enumerate(values):
+        length += len(value.encode(encoding)) + 1
+        if length > maxlength:
+            return util.misc.cwbset(values[:i], delimiter, affix)

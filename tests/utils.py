@@ -120,9 +120,7 @@ def _cmp_dirs(a: pathlib.Path,
         if not _cmp_dirs(new_a, new_b, ignore=ignore, ok=ok):
             ok = False
 
-    if ok:
-        return True
-    return False
+    return bool(ok)
 
 
 def _filediff(a: pathlib.Path, b: pathlib.Path):
@@ -148,9 +146,11 @@ def _xml_filediff(a: pathlib.Path, b: pathlib.Path):
         print_error(f"File {a} could not be parsed.")
         return True
 
-    diff = list(difflib.unified_diff(a_contents, b_contents, fromfile=str(a), tofile=str(b)))
-
-    if diff:
+    if diff := list(
+        difflib.unified_diff(
+            a_contents, b_contents, fromfile=str(a), tofile=str(b)
+        )
+    ):
         print_error(f"Files {a} did not match:")
         for line in diff:
             print(line.strip())

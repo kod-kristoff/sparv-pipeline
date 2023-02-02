@@ -39,16 +39,14 @@ def copy_resource_files(data_dir: pathlib.Path):
         rel_f = f.relative_to(resources_dir)
         if f.is_dir():
             (data_dir / rel_f).mkdir(parents=True, exist_ok=True)
-        else:
-            # Check if file already exists in data dir
-            if (data_dir / rel_f).is_file():
+        elif (data_dir / rel_f).is_file():
                 # Only copy if files are different
-                if not filecmp.cmp(f, (data_dir / rel_f)):
-                    shutil.copy((data_dir / rel_f), (data_dir / rel_f.parent / (rel_f.name + ".bak")))
-                    console.print(f"{rel_f} has been updated and a backup was created")
-                    shutil.copy(f, data_dir / rel_f)
-            else:
+            if not filecmp.cmp(f, (data_dir / rel_f)):
+                shutil.copy(data_dir / rel_f, data_dir / rel_f.parent / f"{rel_f.name}.bak")
+                console.print(f"{rel_f} has been updated and a backup was created")
                 shutil.copy(f, data_dir / rel_f)
+        else:
+            shutil.copy(f, data_dir / rel_f)
 
 
 def reset():
@@ -124,14 +122,7 @@ def run(sparv_datadir: Optional[str] = None):
             except KeyboardInterrupt:
                 console.print("\nSetup interrupted.")
                 sys.exit()
-            if path_str:
-                path = pathlib.Path(path_str)
-            else:
-                if current_dir:
-                    path = current_dir
-                else:
-                    path = default_dir
-
+            path = pathlib.Path(path_str) if path_str else current_dir or default_dir
     try:
         # Expand any "~"
         path = path.expanduser()

@@ -50,10 +50,11 @@ def parse_annotation_list(annotation_names: Optional[List[str]], all_annotations
             include_rest = True
         else:
             name, _, export_name = a.partition(" as ")
-            if not re.match(r"^<[^>]+>$", name):  # Prevent splitting class names
-                plain_name, attr = Annotation(name).split()
-            else:
-                plain_name, attr = None, None
+            plain_name, attr = (
+                (None, None)
+                if re.match(r"^<[^>]+>$", name)
+                else Annotation(name).split()
+            )
             result.pop(name, None)
             result[name] = export_name or None
             if attr:
@@ -68,7 +69,7 @@ def parse_annotation_list(annotation_names: Optional[List[str]], all_annotations
 
     # Add all_annotations to result if required
     if include_rest and all_annotations:
-        for a in [a for a in all_annotations if not a in omit_annotations]:
+        for a in [a for a in all_annotations if a not in omit_annotations]:
             if a not in result:
                 result[a] = None
                 plain_name, _ = Annotation(a).split()
@@ -106,7 +107,7 @@ def cwbset(values, delimiter="|", affix="|", sort=False, maxlength=4095, encodin
             if length > maxlength:
                 values = values[:i]
                 break
-    return affix if not values else affix + delimiter.join(values) + affix
+    return affix + delimiter.join(values) + affix if values else affix
 
 
 def set_to_list(setstring, delimiter="|", affix="|"):
@@ -121,14 +122,18 @@ def remove_control_characters(text, keep: Optional[str] = None):
     """Remove control characters from text, except for those in 'keep'."""
     if keep is None:
         keep = ["\n", "\t", "\r"]
-    return "".join(c for c in text if c in keep or unicodedata.category(c)[0:2] != "Cc")
+    return "".join(
+        c for c in text if c in keep or unicodedata.category(c)[:2] != "Cc"
+    )
 
 
 def remove_formatting_characters(text, keep: Optional[str] = None):
     """Remove formatting characters from text, except for those in 'keep'."""
     if keep is None:
         keep = []
-    return "".join(c for c in text if c in keep or unicodedata.category(c)[0:2] != "Cf")
+    return "".join(
+        c for c in text if c in keep or unicodedata.category(c)[:2] != "Cf"
+    )
 
 
 def chain(annotations, default=None):
@@ -210,6 +215,5 @@ def indent_xml(elem, level=0, indentation="  ") -> None:
             indent_xml(elem, level + 1)
         if not elem.tail or not elem.tail.strip():
             elem.tail = i
-    else:
-        if level and (not elem.tail or not elem.tail.strip()):
-            elem.tail = i
+    elif level and (not elem.tail or not elem.tail.strip()):
+        elem.tail = i

@@ -99,15 +99,17 @@ def read_blingbring(tsv, classmap, verbose=True):
                 classmapping[rogetid] = line[2]
 
     for senseid, rogetids in lexicon.items():
-        roget_head = set([tup[0] for tup in rogetids])
-        roget_subsection = set([tup[1] for tup in rogetids if tup[1]])
-        roget_section = set([tup[2] for tup in rogetids if tup[2]])
-        roget_class = set([tup[3] for tup in rogetids if tup[3]])
-        lexicon[senseid] = {"roget_head": roget_head,
-                            "roget_subsection": roget_subsection,
-                            "roget_section": roget_section,
-                            "roget_class": roget_class,
-                            "bring": set([classmapping[r] for r in roget_head])}
+        roget_head = {tup[0] for tup in rogetids}
+        roget_subsection = {tup[1] for tup in rogetids if tup[1]}
+        roget_section = {tup[2] for tup in rogetids if tup[2]}
+        roget_class = {tup[3] for tup in rogetids if tup[3]}
+        lexicon[senseid] = {
+            "roget_head": roget_head,
+            "roget_subsection": roget_subsection,
+            "roget_section": roget_section,
+            "roget_class": roget_class,
+            "bring": {classmapping[r] for r in roget_head},
+        }
 
     testwords = ["fågel..1",
                  "behjälplig..1",
@@ -193,9 +195,9 @@ def create_freq_pickle(corpus, annotation, model, class_set=None, score_separato
     lexicon = util.misc.PickledLexicon(model)
     # Create a set of all possible classes
     if class_set:
-        all_classes = set(cc for c in lexicon.lexicon.values() for cc in c[class_set])
+        all_classes = {cc for c in lexicon.lexicon.values() for cc in c[class_set]}
     else:
-        all_classes = set(cc for c in lexicon.lexicon.values() for cc in c)
+        all_classes = {cc for c in lexicon.lexicon.values() for cc in c}
     lexicon_size = len(all_classes)
     smoothing = 0.1
 
@@ -228,10 +230,9 @@ def create_freq_pickle(corpus, annotation, model, class_set=None, score_separato
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         reply, error = process.communicate()
         reply = reply.decode()
-        if error:
-            if "Error: can't open attribute" in error.decode():
-                logger.error("Annotation '%s' not found", annotation)
-                sys.exit(1)
+        if error and "Error: can't open attribute" in error.decode():
+            logger.error("Annotation '%s' not found", annotation)
+            sys.exit(1)
 
         for line in reply.splitlines():
             if not line.strip():

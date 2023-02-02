@@ -56,15 +56,12 @@ def csv(source_file: SourceFilename = SourceFilename(),
                 csv_data.append(_make_token_line(word_annotation[span.index], token_name, token_attributes,
                                                  annotation_dict, span.index, delimiter))
 
-            # Create line with structural annotation
             else:
                 attrs = _make_attrs(span.name, annotation_dict, export_names, span.index)
-                for attr in attrs:
-                    csv_data.append(f"# {attr}")
+                csv_data.extend(f"# {attr}" for attr in attrs)
                 if not attrs:
                     csv_data.append(f"# {span.export}")
 
-        # Insert blank line after each closing sentence
         elif span.name == sentence.name and instruction == "close":
             csv_data.append("")
 
@@ -77,8 +74,10 @@ def csv(source_file: SourceFilename = SourceFilename(),
 def _make_header(token, token_attributes, export_names, delimiter):
     """Create a csv header containing the names of the token annotations."""
     line = [export_names.get(token, token)]
-    for annot in token_attributes:
-        line.append(export_names.get(":".join([token, annot]), annot))
+    line.extend(
+        export_names.get(":".join([token, annot]), annot)
+        for annot in token_attributes
+    )
     return delimiter.join(line)
 
 
@@ -101,5 +100,5 @@ def _make_attrs(annotation, annotation_dict, export_names, index):
         export_name = export_names.get(":".join([annotation, name]), name)
         annotation_name = export_names.get(annotation, annotation)
         if annot[index]:
-            attrs.append("%s.%s = %s" % (annotation_name, export_name, annot[index]))
+            attrs.append(f"{annotation_name}.{export_name} = {annot[index]}")
     return attrs

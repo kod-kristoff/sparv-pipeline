@@ -171,7 +171,7 @@ class SparvXMLParser:
             })
             self.unprocessed_header_data_elems.add(header_source_root)
 
-        self.skipped_elems = set(elsplit(elem) for elem in skip)
+        self.skipped_elems = {elsplit(elem) for elem in skip}
         assert self.skipped_elems.isdisjoint(all_elems), "skip and elements must be disjoint"
 
     def parse(self, file):
@@ -392,10 +392,10 @@ class SparvXMLParser:
             for instance in self.data[element]["elements"]:
                 start, start_subpos, end, end_subpos, _original_element, attrs = instance
                 spans.append(((start, start_subpos), (end, end_subpos)))
-                for attr in attributes:
-                    attributes[attr].append(attrs.get(attr, ""))
+                for attr, value in attributes.items():
+                    value.append(attrs.get(attr, ""))
 
-            full_element = "{}.{}".format(self.prefix, element) if self.prefix else element
+            full_element = f"{self.prefix}.{element}" if self.prefix else element
 
             if element in self.header_elements:
                 is_header = True
@@ -413,12 +413,13 @@ class SparvXMLParser:
 
             Output(full_element, source_file=self.file).write(spans)
 
-            for attr in attributes:
-                full_attr = "{}.{}".format(self.prefix, attr) if self.prefix else attr
-                Output("{}:{}".format(full_element, full_attr), source_file=self.file).write(attributes[attr],
-                                                                                             allow_newlines=is_header)
+            for attr, value_ in attributes.items():
+                full_attr = f"{self.prefix}.{attr}" if self.prefix else attr
+                Output(f"{full_element}:{full_attr}", source_file=self.file).write(
+                    value_, allow_newlines=is_header
+                )
                 if element not in self.header_elements:
-                    structure.append("{}:{}".format(full_element, full_attr))
+                    structure.append(f"{full_element}:{full_attr}")
 
         # Save list of all elements and attributes to a file (needed for export)
         SourceStructure(self.file).write(structure)
@@ -435,7 +436,7 @@ class SparvXMLParser:
 def get_namespace(xml_name: str):
     """Search for a namespace in tag and return a tuple (URI, tagname)."""
     m = re.match(r"\{(.*)\}(.+)", xml_name)
-    return (m.group(1), m.group(2)) if m else ("", xml_name)
+    return (m[1], m[2]) if m else ("", xml_name)
 
 
 def analyze_xml(source_file):

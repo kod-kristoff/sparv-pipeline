@@ -7,14 +7,8 @@ logger = get_logger(__name__)
 SENT_SEP = "$SENT$"
 
 
-@annotator("Word sense disambiguation", language=["swe"], config=[
-    Config("wsd.sense_model", default="wsd/ALL_512_128_w10_A2_140403_ctx1.bin", description="Path to sense model"),
-    Config("wsd.context_model", default="wsd/lem_cbow0_s512_w10_NEW2_ctx.bin", description="Path to context model"),
-    Config("wsd.default_prob", -1.0, description="Default value for unanalyzed senses"),
-    Config("wsd.jar", default="wsd/saldowsd.jar", description="Path name of the executable .jar file"),
-    Config("wsd.prob_format", util.constants.SCORESEP + "%.3f", description="Format string for how to print the "
-                                                                            "sense probability")
-])
+@annotator("Word sense disambiguation", language=["swe"], config=[Config("wsd.sense_model", default="wsd/ALL_512_128_w10_A2_140403_ctx1.bin", description="Path to sense model"), Config("wsd.context_model", default="wsd/lem_cbow0_s512_w10_NEW2_ctx.bin", description="Path to context model"), Config("wsd.default_prob", -1.0, description="Default value for unanalyzed senses"), Config("wsd.jar", default="wsd/saldowsd.jar", description="Path name of the executable .jar file"), Config("wsd.prob_format", f"{util.constants.SCORESEP}%.3f", description="Format string for how to print the "
+                                                                            "sense probability")])
 def annotate(wsdjar: Binary = Binary("[wsd.jar]"),
              sense_model: Model = Model("[wsd.sense_model]"),
              context_model: Model = Model("[wsd.context_model]"),
@@ -53,7 +47,7 @@ def annotate(wsdjar: Binary = Binary("[wsd.jar]"),
     sentences, orphans = sentence.get_children(token)
     sentences.append(orphans)
     # Remove empty sentences
-    sentences = list(s for s in sentences if s)
+    sentences = [s for s in sentences if s]
 
     # Start WSD process
     process = wsd_start(wsdjar, sense_model.path, context_model.path, encoding)
@@ -108,8 +102,13 @@ def wsd_start(wsdjar, sense_model, context_model, encoding):
                 ("-contextWidth", "10"),
                 ("-verbose", "false")]
 
-    process = util.system.call_java(wsdjar, wsd_args, options=java_opts, encoding=encoding, return_command=True)
-    return process
+    return util.system.call_java(
+        wsdjar,
+        wsd_args,
+        options=java_opts,
+        encoding=encoding,
+        return_command=True,
+    )
 
 
 def build_input(sentences, word_annotation, ref_annotation, lemgram_annotation, saldo_annotation, pos_annotation):
@@ -180,19 +179,20 @@ def process_output(word: Annotation, out: Output, stdout, in_sentences, saldo_an
 def make_lemgram(lemgram, word, pos):
     """Construct lemgram and simple_lemgram format."""
     lemgram = lemgram.strip(util.constants.AFFIX) if lemgram != util.constants.AFFIX else "_"
-    simple_lemgram = util.constants.DELIM.join(set((lem[:lem.rfind(".")] for lem in lemgram.split(util.constants.DELIM))))
+    simple_lemgram = util.constants.DELIM.join(
+        {lem[: lem.rfind(".")] for lem in lemgram.split(util.constants.DELIM)}
+    )
 
     # Fix simple lemgram for tokens without lemgram (word + pos)
     if not simple_lemgram:
-        simple_lemgram = word + ".." + pos
+        simple_lemgram = f"{word}..{pos}"
     return lemgram, simple_lemgram
 
 
 def remove_mwe(annotation):
     """For MWEs: strip unnecessary information."""
     annotation = annotation.split(util.constants.DELIM)
-    annotation = [i for i in annotation if "_" not in i]
-    if annotation:
+    if annotation := [i for i in annotation if "_" not in i]:
         return util.constants.DELIM.join(annotation)
     else:
         return "_"

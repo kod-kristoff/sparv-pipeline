@@ -153,12 +153,11 @@ def nominal_ratio_calc(pos: List[str], noun_pos: List[str], verb_pos: List[str])
     '0.0'
     """
     # nouns prepositions participles
-    nouns = sum(1 for p in pos if p in noun_pos)
+    nouns = sum(p in noun_pos for p in pos)
     # pronouns adverbs verbs
-    verbs = sum(1 for p in pos if p in verb_pos)
+    verbs = sum(p in verb_pos for p in pos)
     try:
-        nk = float(nouns) / float(verbs)
-        return nk
+        return float(nouns) / float(verbs)
     except ZeroDivisionError:
         return float('inf')
 

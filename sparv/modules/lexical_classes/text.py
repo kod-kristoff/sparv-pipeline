@@ -105,7 +105,7 @@ def annotate_text(out: Output, lexical_classes_token: Annotation, text: Annotati
                 # Calculate class dominance
                 ref_freq = freq_model.lookup(c.replace("_", " "), 0)
                 if not ref_freq:
-                    logger.error("Class '%s' is missing" % ref_freq)
+                    logger.error(f"Class '{ref_freq}' is missing")
                 class_freqs[c] = (rel / ref_freq)
 
         # Sort words according to frequency/dominance

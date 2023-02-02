@@ -31,8 +31,7 @@ def diapivot_annotate(out: Output = Output("<token>:hist.diapivot", cls="token:l
     for lemgrams in lemgram_annotation:
         saldo_ids = []
         for lemgram in lemgrams.split(util.constants.DELIM):
-            s_i = lexicon.get_exactMatch(lemgram)
-            if s_i:
+            if s_i := lexicon.get_exactMatch(lemgram):
                 saldo_ids += [s_i]
 
         out_annotation.append(util.misc.cwbset(set(saldo_ids), sort=True))
@@ -62,9 +61,10 @@ def build_diapivot(out: ModelOutput = ModelOutput("hist/diapivot.pickle")):
     logger.info("Saving cross lexicon in Pickle format")
     picklex = {}
     for lem in xml_lexicon:
-        lemgrams = []
-        for saldo, match in list(xml_lexicon[lem].items()):
-            lemgrams.append(PART_DELIM1.join([saldo, match]))
+        lemgrams = [
+            PART_DELIM1.join([saldo, match])
+            for saldo, match in list(xml_lexicon[lem].items())
+        ]
         picklex[lem] = sorted(lemgrams)
 
     out.write_pickle(picklex)

@@ -29,8 +29,9 @@ class CustomArgumentParser(argparse.ArgumentParser):
         if action.choices is not None and value not in action.choices:
             # Check for possible misspelling
             import difflib
-            close_matches = difflib.get_close_matches(value, action.choices, n=1)
-            if close_matches:
+            if close_matches := difflib.get_close_matches(
+                value, action.choices, n=1
+            ):
                 message = f"unknown command: '{value}' - maybe you meant '{close_matches[0]}'"
             else:
                 choices = ", ".join(map(repr, action.choices))
@@ -43,9 +44,7 @@ class CustomHelpFormatter(argparse.RawDescriptionHelpFormatter):
 
     def _format_action(self, action):
         result = super()._format_action(action)
-        if isinstance(action, argparse._SubParsersAction):
-            return ""
-        return result
+        return "" if isinstance(action, argparse._SubParsersAction) else result
 
 
 def main():
@@ -312,12 +311,12 @@ def main():
             cores = args.cores or available_cpu_count()
         except NotImplementedError:
             cores = 1
-        snakemake_args.update({
+        snakemake_args |= {
             "dryrun": args.dry_run,
             "cores": cores,
             "keepgoing": args.keep_going,
-            "resources": {"threads": args.cores}
-        })
+            "resources": {"threads": args.cores},
+        }
         # Never show progress bar for list commands or dry run
         if args.list or args.dry_run:
             simple_target = True
@@ -391,14 +390,16 @@ def main():
         log_level = args.log or "warning"
         log_file_level = args.log_to_file or "warning"
         simple_mode = args.simple
-        config.update({"debug": args.debug,
-                       "file": vars(args).get("file", []),
-                       "log_level": log_level,
-                       "log_file_level": log_file_level,
-                       "socket": args.socket,
-                       "force_preloader": args.force_preloader,
-                       "targets": snakemake_args["targets"],
-                       "threads": args.cores})
+        config |= {
+            "debug": args.debug,
+            "file": vars(args).get("file", []),
+            "log_level": log_level,
+            "log_file_level": log_file_level,
+            "socket": args.socket,
+            "force_preloader": args.force_preloader,
+            "targets": snakemake_args["targets"],
+            "threads": args.cores,
+        }
         # If using socket, make sure that socket file exists
         if args.socket and not Path(args.socket).is_socket():
             print(f"Socket file '{args.socket}' doesn't exist or isn't a socket.")

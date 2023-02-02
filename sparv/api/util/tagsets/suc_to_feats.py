@@ -40,19 +40,18 @@ MSD_TO_FEATS = {
 
 def suc_to_feats(pos, msd, delim="."):
     """Convert SUC MSD tags into UCoNNL feature list."""
-    non_mapping_msds_for_debug = []
     feats = []
     msd = [i for i in msd.split(delim) if i != "-"]
 
     # If it's not punctuation and if there are MSDs apart from POS
     if pos not in ["MAD", "MID", "PAD"] and len(msd) > 1:
         feats = []
+        non_mapping_msds_for_debug = []
         for i in msd:
             if MSD_TO_FEATS.get(i):
                 feats.append(MSD_TO_FEATS[i])
-            else:
-                if i not in non_mapping_msds_for_debug:
-                    non_mapping_msds_for_debug.append(i)
+            elif i not in non_mapping_msds_for_debug:
+                non_mapping_msds_for_debug.append(i)
         if pos == "PC":
             feats.append("VerbForm=Part")
         if pos == "VB" and "Abbr=Yes" not in feats and "Compound=Yes" not in feats and not _findfeat(feats, "VerbForm"):
@@ -65,7 +64,4 @@ def suc_to_feats(pos, msd, delim="."):
 
 def _findfeat(feats, to_find):
     """Check if 'to_find' is a feature (key) in 'feats'."""
-    for feat in feats:
-        if f"{to_find}=" in feat:
-            return True
-    return False
+    return any(f"{to_find}=" in feat for feat in feats)

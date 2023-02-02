@@ -30,9 +30,13 @@ def setup_wizard(_: dict):
 
     importers = []
     for module_name in registry.modules:
-        for f_name, annotator in registry.modules[module_name].functions.items():
-            if annotator["type"] == registry.Annotator.importer:
-                importers.append((f"{module_name}:{f_name}", annotator))
+        importers.extend(
+            (f"{module_name}:{f_name}", annotator)
+            for f_name, annotator in registry.modules[
+                module_name
+            ].functions.items()
+            if annotator["type"] == registry.Annotator.importer
+        )
     max_len = max(len(n) for n, _ in importers)
     questions.append({
         "type": "select",

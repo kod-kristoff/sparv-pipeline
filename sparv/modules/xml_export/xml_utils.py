@@ -146,10 +146,13 @@ def combine(corpus, out, source_files, xml_input, version_info_file=None):
         if version_info_file:
             print("<!--", file=outf)
             with open(version_info_file, encoding="utf-8") as vi:
-                for line in vi.readlines():
+                for line in vi:
                     print(line.strip(), file=outf)
             print("-->", file=outf)
-        print('<corpus id="%s">' % corpus.replace("&", "&amp;").replace('"', "&quot;"), file=outf)
+        print(
+            f"""<corpus id="{corpus.replace("&", "&amp;").replace('"', "&quot;")}">""",
+            file=outf,
+        )
         for infile in xml_files:
             logger.info("Read: %s", infile)
             with open(infile, encoding="utf-8") as inf:
@@ -160,7 +163,7 @@ def combine(corpus, out, source_files, xml_input, version_info_file=None):
                     # Indent line
                     outf.write(f"{INDENTATION}{line}")
         print("</corpus>", file=outf)
-        logger.info("Exported: %s" % out)
+        logger.info(f"Exported: {out}")
 
 
 def compress(xmlfile, out):
@@ -179,7 +182,7 @@ def install_compressed_xml(corpus, bz2file, out, export_path, host):
     """Install xml file on remote server."""
     if not host:
         raise Exception("No host provided! Export not installed.")
-    filename = corpus + ".xml.bz2"
+    filename = f"{corpus}.xml.bz2"
     remote_file_path = os.path.join(export_path, filename)
     util.install.install_path(bz2file, host, remote_file_path)
     out.write()

@@ -74,12 +74,14 @@ def freq_list(source_files: AllSourceFilenames = AllSourceFilenames(),
         # Create tuples with annotations for each token and count frequencies
         tokens = word.read_attributes(source_file, token_annotations)
         for n, token_annotations_tuple in enumerate(tokens):
-            structs_tuple = tuple([struct[n] for struct in struct_values])
+            structs_tuple = tuple(struct[n] for struct in struct_values)
             freq_dict[token_annotations_tuple + structs_tuple] += 1
 
     # Create header
-    struct_header_names = [export_names.get(a.annotation_name, a.annotation_name) + ":" + export_names[a.name]
-                           for a in struct_annotations]
+    struct_header_names = [
+        f"{export_names.get(a.annotation_name, a.annotation_name)}:{export_names[a.name]}"
+        for a in struct_annotations
+    ]
     column_names = [export_names[a.name] for a in token_annotations] + struct_header_names
     column_names.append("count")
 

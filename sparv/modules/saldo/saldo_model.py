@@ -209,8 +209,7 @@ def read_lmf(xml, tagmap, annotation_elements=("gf", "lem", "saldo"), verbose=Tr
                             if pos == "vbm":
                                 pos = "vb"
                         saldotag = " ".join([pos] + inhs + [param])
-                        tags = tagmap.get(saldotag)
-                        if tags:
+                        if tags := tagmap.get(saldotag):
                             lexicon.setdefault(word, {}).setdefault(annotations, (set(), set(), False, False))[0].update(tags)
 
             # Done parsing section. Clear tree to save memory

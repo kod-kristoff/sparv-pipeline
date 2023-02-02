@@ -82,7 +82,9 @@ def do_segmentation(text: Text, out: Output, segmenter, chunk: Optional[Annotati
     Segmentation is done by the given "segmenter"; some segmenters take
     an extra argument which is a pickled "model" object.
     """
-    assert segmenter in SEGMENTERS, "Available segmenters: %s" % ", ".join(sorted(SEGMENTERS))
+    assert (
+        segmenter in SEGMENTERS
+    ), f'Available segmenters: {", ".join(sorted(SEGMENTERS))}'
     segmenter = SEGMENTERS[segmenter]
 
     segmenter_args = {}
@@ -108,7 +110,7 @@ def do_segmentation(text: Text, out: Output, segmenter, chunk: Optional[Annotati
 
     positions = set()
     chunk_spans = chunk.read_spans() if chunk else []
-    positions = positions.union(set(pos for span in chunk_spans for pos in span))
+    positions = positions.union({pos for span in chunk_spans for pos in span})
     positions = sorted({0, len(corpus_text)} | positions)
     chunk_spans = list(zip(positions, positions[1:]))
 
@@ -175,7 +177,9 @@ def build_tokenlist(saldo_model: Model = Model("saldo/saldo.pickle"),
         else:
             model_arg = model.path
         segmenter_args.append(model_arg)
-    assert segmenter in SEGMENTERS, "Available segmenters: %s" % ", ".join(sorted(SEGMENTERS))
+    assert (
+        segmenter in SEGMENTERS
+    ), f'Available segmenters: {", ".join(sorted(SEGMENTERS))}'
     segmenter = SEGMENTERS[segmenter]
     segmenter = segmenter(*segmenter_args)
     assert hasattr(segmenter, "span_tokenize"), "Segmenter needs a 'span_tokenize' method: %r" % segmenter
@@ -302,33 +306,29 @@ class BetterWordTokenizer:
             for line in conf:
                 if line.startswith("#") or not line.strip():
                     continue
-                if not in_abbr:
-                    if not in_abbr and line.strip() == "abbreviations:":
-                        in_abbr = True
-                        continue
-                    else:
-                        try:
-                            key, val = line.strip().split(None, 1)
-                        except ValueError as e:
-                            logger.error("Error parsing configuration file: %s", line)
-                            raise e
-                        key = key[:-1]
-
-                        if key == "case_sensitive":
-                            self.case_sensitive = (val.lower() == "true")
-                        elif key.startswith("misc_"):
-                            self.patterns["misc"].append(val)
-                        elif key in ("start", "within", "end"):
-                            self.patterns[key] = re.escape(val)
-                        elif key in ("multi", "number"):
-                            self.patterns[key] = val
-                        # For backwards compatibility
-                        elif key == "token_list":
-                            pass
-                        else:
-                            raise ValueError("Unknown option: %s" % key)
-                else:
+                if in_abbr:
                     self.abbreviations.add(line.strip())
+
+                elif not in_abbr and line.strip() == "abbreviations:":
+                    in_abbr = True
+                else:
+                    try:
+                        key, val = line.strip().split(None, 1)
+                    except ValueError as e:
+                        logger.error("Error parsing configuration file: %s", line)
+                        raise e
+                    key = key[:-1]
+
+                    if key == "case_sensitive":
+                        self.case_sensitive = (val.lower() == "true")
+                    elif key.startswith("misc_"):
+                        self.patterns["misc"].append(val)
+                    elif key in ("start", "within", "end"):
+                        self.patterns[key] = re.escape(val)
+                    elif key in ("multi", "number"):
+                        self.patterns[key] = val
+                    elif key != "token_list":
+                        raise ValueError(f"Unknown option: {key}")
 
     def _word_tokenizer_re(self):
         """Compile and return a regular expression for word tokenization."""
@@ -337,19 +337,34 @@ class BetterWordTokenizer:
         except AttributeError:
             modifiers = (re.UNICODE | re.VERBOSE) if self.case_sensitive else (re.UNICODE | re.VERBOSE | re.IGNORECASE)
             self._re_word_tokenizer = re.compile(
-                self._word_tokenize_fmt %
-                {
-                    "tokens": ("(?:" + "|".join(self.patterns["tokens"]) + ")|") if self.patterns["tokens"] else "",
-                    "abbrevs": ("(?:" + "|".join(
-                        re.escape(a + ".") for a in self.abbreviations) + ")|") if self.abbreviations else "",
-                    "misc": "|".join(self.patterns["misc"]),
-                    "number": self.patterns["number"],
-                    "within": self.patterns["within"],
-                    "multi": self.patterns["multi"],
-                    "start": self.patterns["start"],
-                    "end": self.patterns["end"]
-                },
-                modifiers
+                (
+                    self._word_tokenize_fmt
+                    % {
+                        "tokens": (
+                            "(?:" + "|".join(self.patterns["tokens"]) + ")|"
+                        )
+                        if self.patterns["tokens"]
+                        else "",
+                        "abbrevs": (
+                            (
+                                "(?:"
+                                + "|".join(
+                                    re.escape(f"{a}.") for a in self.abbreviations
+                                )
+                            )
+                            + ")|"
+                        )
+                        if self.abbreviations
+                        else "",
+                        "misc": "|".join(self.patterns["misc"]),
+                        "number": self.patterns["number"],
+                        "within": self.patterns["within"],
+                        "multi": self.patterns["multi"],
+                        "start": self.patterns["start"],
+                        "end": self.patterns["end"],
+                    }
+                ),
+                modifiers,
             )
             return self._re_word_tokenizer
 
@@ -450,4 +465,6 @@ SEGMENTERS = dict(whitespace=nltk.WhitespaceTokenizer,
 
 if not do_segmentation.__doc__:
     do_segmentation.__doc__ = ""
-do_segmentation.__doc__ += "The following segmenters are available: %s" % ", ".join(sorted(SEGMENTERS))
+do_segmentation.__doc__ += (
+    f'The following segmenters are available: {", ".join(sorted(SEGMENTERS))}'
+)

@@ -36,13 +36,8 @@ def contextual(out: Output = Output("{chunk}:geo.geo_context", description="Geog
         for n in chunk_nes:
             if ne_type_annotation[n] == "LOC" and "PPL" in ne_subtype_annotation[n]:
                 location_text = ne_name_annotation[n].replace("\n", " ").replace("  ", " ")
-                location_data = model.get(location_text.lower())
-                if location_data:
+                if location_data := model.get(location_text.lower()):
                     chunk_locations.append((location_text, list(location_data)))
-                else:
-                    pass
-                    # logger.info("No location found for %s" % ne_name_annotation[n].replace("%", "%%"))
-
         chunk_locations = most_populous(chunk_locations)
         out_annotation[chunk_index] = _format_location(chunk_locations)
 
@@ -80,8 +75,7 @@ def metadata(out: Output = Output("{chunk}:geo.geo_metadata", description="Geogr
                 i] is not None else None
 
         if location_source:
-            location_data = geomodel.get(location_source.strip().lower())
-            if location_data:
+            if location_data := geomodel.get(location_source.strip().lower()):
                 chunk_locations = [(location_source, list(location_data))]
 
         chunk_locations = most_populous(chunk_locations)

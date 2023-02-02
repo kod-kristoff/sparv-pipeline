@@ -185,9 +185,9 @@ class Annotation(CommonMixin, BaseAnnotation):
 
         # Add rest of parents
         if parent_span is not None:
-            for parent_i, parent_span in parent_spans:
-                parent_children.append((parent_i, []))
-
+            parent_children.extend(
+                (parent_i, []) for parent_i, parent_span in parent_spans
+            )
         if preserve_parent_annotation_order:
             # Restore parent order
             parent_children = [p for _, p in sorted(parent_children)]
@@ -226,10 +226,7 @@ class Annotation(CommonMixin, BaseAnnotation):
             else:
                 child_parents.append((child_i, parent_i))
 
-        # Restore child order
-        child_parents = [p for _, p in sorted(child_parents)]
-
-        return child_parents
+        return [p for _, p in sorted(child_parents)]
 
     def read_parents_and_children(self, parent: BaseAnnotation, child: BaseAnnotation):
         """Read parent and child annotations.
@@ -240,10 +237,13 @@ class Annotation(CommonMixin, BaseAnnotation):
         child_spans = sorted(enumerate(io.read_annotation_spans(self.source_file, child, decimals=True)), key=lambda x: x[1])
 
         # Only use sub-positions if both parent and child have them
-        if parent_spans and child_spans:
-            if len(parent_spans[0][1][0]) == 1 or len(child_spans[0][1][0]) == 1:
-                parent_spans = [(p[0], (p[1][0][0], p[1][1][0])) for p in parent_spans]
-                child_spans = [(c[0], (c[1][0][0], c[1][1][0])) for c in child_spans]
+        if (
+            parent_spans
+            and child_spans
+            and (len(parent_spans[0][1][0]) == 1 or len(child_spans[0][1][0]) == 1)
+        ):
+            parent_spans = [(p[0], (p[1][0][0], p[1][1][0])) for p in parent_spans]
+            child_spans = [(c[0], (c[1][0][0], c[1][1][0])) for c in child_spans]
 
         return iter(parent_spans), iter(child_spans)
 
@@ -689,7 +689,7 @@ class Source:
     def get_path(self, source_file: SourceFilename, extension: str):
         """Get the path of a source file."""
         if not extension.startswith("."):
-            extension = "." + extension
+            extension = f".{extension}"
         if ":" in source_file:
             file_name, _, file_chunk = source_file.partition(":")
             source_file = pathlib.Path(self.source_dir, file_name, file_chunk + extension)

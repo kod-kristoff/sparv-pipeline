@@ -31,7 +31,7 @@ def hist_morphtable(out: ModelOutput = ModelOutput("hunpos/hist/dalinm-swedberg_
     words = {}
     _read_saldosuc(words, saldosuc_morphtable.path)
     for fil in [dalin, swedberg]:
-        for line in open(fil.path, encoding="utf-8").readlines():
+        for line in open(fil.path, encoding="utf-8"):
             if not line.strip():
                 continue
             xs = line.split("\t")
@@ -42,11 +42,7 @@ def hist_morphtable(out: ModelOutput = ModelOutput("hunpos/hist/dalinm-swedberg_
                 if msd.startswith("vb"):  # We assume that the head of a verbal mwe is the first word
                     word = word.split()[0]
 
-            # If the tag is not present, we try to translate it anyway
-            suc = SALDO_TO_SUC.get(msd, "")
-            if not suc:
-                suc = _force_parse(msd)
-            if suc:
+            if suc := SALDO_TO_SUC.get(msd, "") or _force_parse(msd):
                 words.setdefault(word.lower(), set()).update(suc)
                 words.setdefault(word.title(), set()).update(suc)
     with open(out.path, encoding="UTF-8", mode="w") as out:
@@ -56,7 +52,7 @@ def hist_morphtable(out: ModelOutput = ModelOutput("hunpos/hist/dalinm-swedberg_
 
 
 def _read_saldosuc(words, saldosuc_morphtable):
-    for line in open(saldosuc_morphtable, encoding="utf-8").readlines():
+    for line in open(saldosuc_morphtable, encoding="utf-8"):
         xs = line.strip().split("\t")
         words.setdefault(xs[0], set()).update(set(xs[1:]))
 
@@ -103,7 +99,11 @@ def _force_parse(msd):
     if m is None:
         return set()
     sucfilter = m.expand(post).replace(" ", r"\.").replace("+", r"\+")
-    new_suc = set(suctag for suctag in tagmappings.tags["suc_tags"] if re.match(sucfilter, suctag))
+    new_suc = {
+        suctag
+        for suctag in tagmappings.tags["suc_tags"]
+        if re.match(sucfilter, suctag)
+    }
     SALDO_TO_SUC[msd] = new_suc
     return new_suc
 

@@ -201,10 +201,7 @@ def _merge_dicts(d: dict, default: dict):
     """Merge dict 'd' with dict 'default', letting values from 'd' override default values."""
     if isinstance(d, dict) and isinstance(default, dict):
         for k, v in default.items():
-            if k not in d:
-                d[k] = v
-            else:
-                d[k] = _merge_dicts(d[k], v)
+            d[k] = v if k not in d else _merge_dicts(d[k], v)
     return d
 
 
@@ -239,9 +236,10 @@ def validate_module_config():
         except KeyError:
             annotators = config_usage[config_key]
             raise SparvErrorMessage(
-                "The annotator{} {} {} trying to access the config key '{}' which isn't declared anywhere.".format(
-                    "s" if len(annotators) > 1 else "", ", ".join(annotators),
-                    "are" if len(annotators) > 1 else "is", config_key), "sparv", "config")
+                f"""The annotator{"s" if len(annotators) > 1 else ""} {", ".join(annotators)} {"are" if len(annotators) > 1 else "is"} trying to access the config key '{config_key}' which isn't declared anywhere.""",
+                "sparv",
+                "config",
+            )
 
 
 def validate_config(config_dict=None, structure=None, parent=""):
@@ -249,16 +247,15 @@ def validate_config(config_dict=None, structure=None, parent=""):
     config_dict = config_dict or config
     structure = structure or config_structure
     for key in config_dict:
-        path = (parent + "." + key) if parent else key
+        path = f"{parent}.{key}" if parent else key
         if key not in structure:
             if not parent:
                 raise SparvErrorMessage(f"Unknown key in config file: '{path}'. No module with that name found.",
                                         module="sparv", function="config")
-            else:
-                module_name = parent.split(".", 1)[0]
-                raise SparvErrorMessage(f"Unknown key in config file: '{path}'. The module '{module_name}' "
-                                        f"doesn't have an option with that name.",
-                                        module="sparv", function="config")
+            module_name = parent.split(".", 1)[0]
+            raise SparvErrorMessage(f"Unknown key in config file: '{path}'. The module '{module_name}' "
+                                    f"doesn't have an option with that name.",
+                                    module="sparv", function="config")
         elif not structure[key].get("_source"):
             validate_config(config_dict[key], structure[key], path)
 
@@ -269,7 +266,7 @@ def load_presets(lang, lang_variety):
     class_dict = {}
     full_lang = lang
     if lang_variety:
-        full_lang = lang + "-" + lang_variety
+        full_lang = f"{lang}-{lang_variety}"
 
     for f in PRESETS_DIR.rglob("*.yaml"):
         presets_yaml = read_yaml(f)

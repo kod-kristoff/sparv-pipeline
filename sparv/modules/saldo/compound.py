@@ -39,23 +39,8 @@ def preloader(saldo_comp_model, stats_model):
     Config("saldo.comp_use_source", default=True, description="Also use source text as lexicon for compound analysis")
 ], preloader=preloader, preloader_params=["saldo_comp_model", "stats_model"], preloader_target="preloaded_models")
 def annotate(out_complemgrams: Output = Output("<token>:saldo.complemgram",
-                                               description="Compound analysis using lemgrams"),
-             out_compwf: Output = Output("<token>:saldo.compwf", description="Compound analysis using wordforms"),
-             out_baseform: Output = Output("<token>:saldo.baseform2",
-                                           description="Baseform including baseforms derived from compounds"),
-             word: Annotation = Annotation("<token:word>"),
-             msd: Annotation = Annotation("<token:msd>"),
-             baseform_tmp: Annotation = Annotation("<token>:saldo.baseform"),
-             saldo_comp_model: Model = Model("[saldo.comp_model]"),
-             nst_model: Model = Model("[saldo.comp_nst_model]"),
-             stats_model: Model = Model("[saldo.comp_stats_model]"),
-             comp_use_source: bool = Config("saldo.comp_use_source"),
-             complemgramfmt: str = util.constants.SCORESEP + "%.3e",
-             delimiter: str = util.constants.DELIM,
-             compdelim: str = util.constants.COMPSEP,
-             affix: str = util.constants.AFFIX,
-             cutoff: bool = True,
-             preloaded_models=None):
+                                               description="Compound analysis using lemgrams"), out_compwf: Output = Output("<token>:saldo.compwf", description="Compound analysis using wordforms"), out_baseform: Output = Output("<token>:saldo.baseform2",
+                                           description="Baseform including baseforms derived from compounds"), word: Annotation = Annotation("<token:word>"), msd: Annotation = Annotation("<token:msd>"), baseform_tmp: Annotation = Annotation("<token>:saldo.baseform"), saldo_comp_model: Model = Model("[saldo.comp_model]"), nst_model: Model = Model("[saldo.comp_nst_model]"), stats_model: Model = Model("[saldo.comp_stats_model]"), comp_use_source: bool = Config("saldo.comp_use_source"), complemgramfmt: str = f"{util.constants.SCORESEP}%.3e", delimiter: str = util.constants.DELIM, compdelim: str = util.constants.COMPSEP, affix: str = util.constants.AFFIX, cutoff: bool = True, preloaded_models=None):
     """Divide compound words into prefix(es) and suffix.
 
     - out_complemgram is the resulting annotation file for compound lemgrams
@@ -195,7 +180,7 @@ class SaldoCompLexicon:
         lemgram, msds, pos, tags = annotation_tag_words.split(PART_DELIM1)
         msds = msds.split(PART_DELIM2)
         tags = tags.split(PART_DELIM2)
-        tags = list(set([t[:t.find(".")] if t.find(".") != -1 else t for t in tags]))
+        tags = list({t[:t.find(".")] if t.find(".") != -1 else t for t in tags})
         return lemgram, msds, pos, tags
 
 
@@ -252,10 +237,12 @@ class InFileLexicon:
 
     def get_suffixes(self, suffix, msd=None):
         """Get all possible suffixes."""
-        return [(suffix, "0", (s[1],)) for s in self.lookup(suffix.lower())
-                if (s[1][0:2] in ("NN", "VB", "AV"))
-                and (not msd or msd in s[1] or s[1].startswith(msd[:msd.find(".")]))
-                ]
+        return [
+            (suffix, "0", (s[1],))
+            for s in self.lookup(suffix.lower())
+            if s[1][:2] in ("NN", "VB", "AV")
+            and (not msd or msd in s[1] or s[1].startswith(msd[: msd.find(".")]))
+        ]
 
 
 ################################################################################
@@ -314,7 +301,7 @@ def split_word(saldo_lexicon, altlexicon, w, msd):
             abort = False
             for ii, s in enumerate(spans):
                 if s in invalid_spans:
-                    if not s[1] is None:
+                    if s[1] is not None:
                         # Skip any combination of spans following the invalid span
                         for j in range(ii + 1, n):
                             indices[j] = j + nn - n
@@ -332,32 +319,39 @@ def split_word(saldo_lexicon, altlexicon, w, msd):
                 if this_span not in valid_spans:
                     if this_span in invalid_spans:
                         continue
-                    else:
-                        if not (saldo_lexicon.get_prefixes(comp[0]) or altlexicon.get_prefixes(comp[0])):
-                            invalid_spans.add(this_span)
-                            if multicomp:
-                                if all((spans[0], i) in invalid_spans for i in range(len(comps))):
-                                    invalid_spans.add(spans[0])
-                            continue
-                        else:
-                            valid_spans.add(this_span)
+                    if saldo_lexicon.get_prefixes(
+                        comp[0]
+                    ) or altlexicon.get_prefixes(comp[0]):
+                        valid_spans.add(this_span)
 
+                    else:
+                        invalid_spans.add(this_span)
+                        if multicomp and all(
+                            (spans[0], i) in invalid_spans
+                            for i in range(len(comps))
+                        ):
+                            invalid_spans.add(spans[0])
+                        continue
                 # Check if suffix is valid
                 this_span = (spans[-1], comp_i) if multicomp else spans[-1]
                 if this_span not in valid_spans:
                     if this_span in invalid_spans:
                         continue
-                    else:
                         # Is there a possible suffix analysis?
-                        if exception(comp[-1]) or not (saldo_lexicon.get_suffixes(comp[-1], msd)
-                                                       or altlexicon.get_suffixes(comp[-1], msd)):
-                            invalid_spans.add(this_span)
-                            if multicomp:
-                                if all((spans[-1], i) in invalid_spans for i in range(len(comps))):
-                                    invalid_spans.add(spans[-1])
-                            continue
-                        else:
-                            valid_spans.add(this_span)
+                    if (
+                        exception(comp[-1])
+                        or not saldo_lexicon.get_suffixes(comp[-1], msd)
+                        and not altlexicon.get_suffixes(comp[-1], msd)
+                    ):
+                        invalid_spans.add(this_span)
+                        if multicomp and all(
+                            (spans[-1], i) in invalid_spans
+                            for i in range(len(comps))
+                        ):
+                            invalid_spans.add(spans[-1])
+                        continue
+                    else:
+                        valid_spans.add(this_span)
 
                 # Check if other spans are valid
                 abort = False
@@ -368,12 +362,17 @@ def split_word(saldo_lexicon, altlexicon, w, msd):
                             abort = True
                             break
                         else:
-                            if exception(infix) or not (saldo_lexicon.get_infixes(infix)
-                                                        or altlexicon.get_prefixes(infix)):
+                            if (
+                                exception(infix)
+                                or not saldo_lexicon.get_infixes(infix)
+                                and not altlexicon.get_prefixes(infix)
+                            ):
                                 invalid_spans.add(this_span)
-                                if multicomp:
-                                    if all((spans[k], i) in invalid_spans for i in range(len(comps))):
-                                        invalid_spans.add(spans[k])
+                                if multicomp and all(
+                                    (spans[k], i) in invalid_spans
+                                    for i in range(len(comps))
+                                ):
+                                    invalid_spans.add(spans[k])
                                 abort = True
                                 # Skip any combination of spans following the invalid span
                                 for j in range(k + 1, n):
@@ -388,7 +387,7 @@ def split_word(saldo_lexicon, altlexicon, w, msd):
                 counter += 1
                 if counter > SPLIT_LIMIT:
                     giveup = True
-                    logger.info("Too many possible compounds for word '%s'" % w)
+                    logger.info(f"Too many possible compounds for word '{w}'")
                     break
                 yield comp
 
@@ -470,8 +469,6 @@ def compound(saldo_lexicon, altlexicon, w, msd=None):
 
     out_compounds = []
     for comp in in_compounds:
-        current_combinations = []
-
         # Get prefix analysis
         anap = saldo_lexicon.get_prefixes(comp[0])
         if not anap:
@@ -479,8 +476,7 @@ def compound(saldo_lexicon, altlexicon, w, msd=None):
         # Needs to be checked because of the three consonant rule
         if not anap:
             continue
-        current_combinations.append(anap)
-
+        current_combinations = [anap]
         # Get infix analyses
         for infix in comp[1:-1]:
             anai = saldo_lexicon.get_infixes(infix)
@@ -515,11 +511,7 @@ def make_complem_and_compwf(out_complem, out_compwf, complemgramfmt, compounds, 
     for comp in compounds:
         prob = comp[0]
         comp = comp[1]
-        complems = True
-        for a in comp:
-            if a[1] == "0":
-                complems = False
-                break
+        complems = all(a[1] != "0" for a in comp)
         if complems:
             if complemgramfmt:
                 # Construct complemgram + lemprob
@@ -529,10 +521,14 @@ def make_complem_and_compwf(out_complem, out_compwf, complemgramfmt, compounds, 
 
         # If first letter has upper case, check if one of the affixes may be a name:
         if comp[0][0][0] == comp[0][0][0].upper():
-            if not any([True for a in comp if "pm" in a[1][a[1].find("."):]] + [True for a in comp if "PM" in a[2]]):
-                wf = compdelim.join(affix[0].lower() for affix in comp)
-            else:
-                wf = compdelim.join(affix[0] for affix in comp)
+            wf = (
+                compdelim.join(affix[0] for affix in comp)
+                if any(
+                    [True for a in comp if "pm" in a[1][a[1].find(".") :]]
+                    + [True for a in comp if "PM" in a[2]]
+                )
+                else compdelim.join(affix[0].lower() for affix in comp)
+            )
         else:
             wf = compdelim.join(affix[0] for affix in comp)
 
@@ -558,17 +554,21 @@ def make_new_baseforms(out_baseform, msd_tag, compounds, stats_lexicon, altlexic
         prefix = comp[0][0]
         # If first letter has upper case, check if one of the affixes is a name:
         if prefix[0] == prefix[0].upper():
-            if not any(True for a in comp if "pm" in a[1][a[1].find("."):]):
-                baseform = "".join(affix[0].lower() for affix in comp[:-1]) + base_suffix
-            else:
-                baseform = "".join(affix[0] for affix in comp[:-1]) + base_suffix
+            baseform = (
+                "".join(affix[0] for affix in comp[:-1]) + base_suffix
+                if any(True for a in comp if "pm" in a[1][a[1].find(".") :])
+                else "".join(affix[0].lower() for affix in comp[:-1])
+                + base_suffix
+            )
         else:
             baseform = "".join(affix[0] for affix in comp[:-1]) + base_suffix
 
         # Check if this baseform with the MSD tag occurs in stats_lexicon
-        if baseform not in baseform_list:
-            if stats_lexicon.lookup_word_tag_freq(baseform, msd_tag) > 0 or altlexicon.lookup(baseform.lower()) != []:
-                baseform_list.append(baseform)
+        if baseform not in baseform_list and (
+            stats_lexicon.lookup_word_tag_freq(baseform, msd_tag) > 0
+            or altlexicon.lookup(baseform.lower()) != []
+        ):
+            baseform_list.append(baseform)
 
     # Add to annotation
     out_baseform.append(util.misc.cwbset(baseform_list, delimiter, affix) if (compounds and baseform_list) else affix)
@@ -576,7 +576,7 @@ def make_new_baseforms(out_baseform, msd_tag, compounds, stats_lexicon, altlexic
 
 def read_lmf(xml: pathlib.Path, tagset: str = "SUC"):
     """Read the XML version of SALDO's morphological lexicon (saldom.xml)."""
-    tagmap = tagmappings.mappings["saldo_to_" + tagset.lower() + "_compound"]
+    tagmap = tagmappings.mappings[f"saldo_to_{tagset.lower()}_compound"]
     logger.info("Reading XML lexicon")
     lexicon = {}
 
@@ -600,7 +600,7 @@ def read_lmf(xml: pathlib.Path, tagset: str = "SUC"):
                     word = form.findtext("wf")
                     param = form.findtext("param")
 
-                    if not param[-1].isdigit() and not param == "frag":  # and (param in ("c", "ci") or (pos in ("nn", "vb", "av", "ab") or pos[-1] == "h")):
+                    if not param[-1].isdigit() and param != "frag":  # and (param in ("c", "ci") or (pos in ("nn", "vb", "av", "ab") or pos[-1] == "h")):
                         saldotag = " ".join([pos] + inhs + [param])
                         tags = tagmap.get(saldotag)
 

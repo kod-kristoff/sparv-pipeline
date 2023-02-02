@@ -52,9 +52,7 @@ def saldo_morphtable(out: ModelOutput = ModelOutput("hunpos/saldo_suc-tags.morph
     # Get all wordforms from SALDO
     for word in list(lex.lexicon.keys()):
         words = lex.lookup(word)
-        # Filter out multi word expressions
-        words = [x for x in words if len(x[2]) == 0]
-        if words:
+        if words := [x for x in words if len(x[2]) == 0]:
             # Only use MSD not containing "-"
             for w in words:
                 for msd in w[1]:
@@ -63,12 +61,12 @@ def saldo_morphtable(out: ModelOutput = ModelOutput("hunpos/saldo_suc-tags.morph
                         if add_capitalized:
                             # Add a capitalized form of the word
                             capitalized = word[0].upper() + word[1:]
-                            if not word == capitalized:
+                            if word != capitalized:
                                 tags[capitalized].add(msd)
                         if add_lowercase:
                             # Add a lower case form of the word
                             lower = word.lower()
-                            if not word == lower:
+                            if word != lower:
                                 tags[lower].add(msd)
 
     # Read SUC words
@@ -79,8 +77,11 @@ def saldo_morphtable(out: ModelOutput = ModelOutput("hunpos/saldo_suc-tags.morph
             # Don't keep SALDO words already in SUC
             if word in tags:
                 del tags[word]
-            # If the word is not a name, and exists as lowercase in SALDO, remove it
-            elif not msd.startswith("PM") and not word.lower() == word and word.lower() in tags:
+            elif (
+                not msd.startswith("PM")
+                and word.lower() != word
+                and word.lower() in tags
+            ):
                 del tags[word.lower()]
 
     # Read regular expressions from pattern file

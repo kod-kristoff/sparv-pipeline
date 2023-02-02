@@ -24,9 +24,9 @@ def get_data_path(subpath: Union[str, Path] = "") -> Optional[Path]:
     global data_dir
 
     if not data_dir:
-        # Environment variable overrides config
-        data_dir_str = os.environ.get(data_dir_env) or read_sparv_config().get("sparv_data")
-        if data_dir_str:
+        if data_dir_str := os.environ.get(
+            data_dir_env
+        ) or read_sparv_config().get("sparv_data"):
             data_dir = Path(data_dir_str).expanduser()
 
     if subpath and data_dir:

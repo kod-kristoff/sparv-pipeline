@@ -46,7 +46,8 @@ def scrambled(source_file: SourceFilename = SourceFilename(),
                        "the source text. Make sure to add <token> to the list of export annotations.")
     if chunk not in annotation_list:
         raise SparvErrorMessage(
-            "The annotation used for scrambling ({}) needs to be included in the output.".format(chunk))
+            f"The annotation used for scrambling ({chunk}) needs to be included in the output."
+        )
     span_positions, annotation_dict = util.export.gather_annotations(annotation_list, export_names,
                                                                      source_file=source_file, split_overlaps=True)
 

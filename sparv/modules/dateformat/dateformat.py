@@ -195,7 +195,7 @@ def _formatter(in_from: Annotation, in_to: Optional[Annotation], out_from: Outpu
                    "S": 2}
 
         for part in parts[1:]:
-            add = lengths.get(part[0], None)
+            add = lengths.get(part[0])
             if add:
                 length += add + len(part[1:])
             else:
@@ -217,8 +217,10 @@ def _formatter(in_from: Annotation, in_to: Optional[Annotation], out_from: Outpu
     if splitter:
         splitter = splitter
 
-    assert len(outformat) == 1 or (len(outformat) == len(informat)), "The number of out-formats must be equal to one " \
-                                                                     "or the number of in-formats."
+    assert len(outformat) in [1, len(informat)], (
+        "The number of out-formats must be equal to one "
+        "or the number of in-formats."
+    )
 
     ifrom = list(in_from.read())
     ofrom = in_from.create_empty_attribute()
@@ -258,14 +260,14 @@ def _formatter(in_from: Annotation, in_to: Optional[Annotation], out_from: Outpu
                 for i, v in enumerate(vals):
                     if "%3Y" in inf[i]:
                         datelen = get_date_length(inf[i])
-                        if datelen and not datelen == len(v):
+                        if datelen and datelen != len(v):
                             raise ValueError
                         inf[i] = inf[i].replace("%3Y", "%Y")
-                        v = "0" + v
+                        v = f"0{v}"
                     if "%0m" in inf[i] or "%0d" in inf[i]:
                         inf[i] = inf[i].replace("%0m", "%m").replace("%0d", "%d")
                         datelen = get_date_length(inf[i])
-                        if datelen and not datelen == len(v):
+                        if datelen and datelen != len(v):
                             raise ValueError
                     fromdates.append(datetime.datetime.strptime(v, inf[i]))
                 if len(fromdates) == 1 or out_to:
@@ -322,14 +324,14 @@ def _formatter(in_from: Annotation, in_to: Optional[Annotation], out_from: Outpu
                     for i, v in enumerate(vals):
                         if "%3Y" in inf[i]:
                             datelen = get_date_length(inf[i])
-                            if datelen and not datelen == len(v):
+                            if datelen and datelen != len(v):
                                 raise ValueError
                             inf[i] = inf[i].replace("%3Y", "%Y")
-                            v = "0" + v
+                            v = f"0{v}"
                         if "%0m" in inf[i] or "%0d" in inf[i]:
                             inf[i] = inf[i].replace("%0m", "%m").replace("%0d", "%d")
                             datelen = get_date_length(inf[i])
-                            if datelen and not datelen == len(v):
+                            if datelen and datelen != len(v):
                                 raise ValueError
                         todates.append(datetime.datetime.strptime(v, inf[i]))
                     smallest_unit = get_smallest_unit(inf[0])

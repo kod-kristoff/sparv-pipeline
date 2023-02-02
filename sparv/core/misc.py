@@ -19,13 +19,14 @@ class SparvErrorMessage(Exception):
         """
         self.message = message
         # Alter message before calling base class
-        super().__init__("{}{}\n{}\n{}{}".format(SparvErrorMessage.start_marker, module, function, message,
-                                                 SparvErrorMessage.end_marker))
+        super().__init__(
+            f"{SparvErrorMessage.start_marker}{module}\n{function}\n{message}{SparvErrorMessage.end_marker}"
+        )
 
 
 def get_logger(name):
     """Get a logger that is a child of 'sparv.modules'."""
     if not name.startswith("sparv.modules"):
-        name = "sparv.modules." + name
+        name = f"sparv.modules.{name}"
     return logging.getLogger(name)
 

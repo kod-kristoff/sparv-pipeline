@@ -56,7 +56,7 @@ def sync_cwb(corpus, out, host, info_file, registry_file, target_data_dir, targe
     util.system.rsync(source_data_dir, host, target)
 
     target_registry_file = os.path.join(target_registry_dir, corpus)
-    source_registry_file = os.path.join(source_registry_dir, corpus + ".tmp")
+    source_registry_file = os.path.join(source_registry_dir, f"{corpus}.tmp")
 
     # Fix absolute paths in registry file
     with open(registry_file, encoding="utf-8") as registry_in:

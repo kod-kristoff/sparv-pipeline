@@ -4,13 +4,14 @@ import argparse
 import enum
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import pydantic
 import typer
 
 from sparv import __version__
 from sparv.core import paths
+from snakemake.utils import available_cpu_count
 
 
 # Check Python version
@@ -78,7 +79,7 @@ class CustomHelpFormatter(argparse.RawDescriptionHelpFormatter):
 def check_sparv_is_set_up():
     print("check_sparv_is_set_up")
     return
-    
+
     # Make sure that Sparv data dir is set
     if not paths.get_data_path():
         print(f"The path to Sparv's data directory needs to be configured, either by running 'sparv setup' or by "
@@ -103,7 +104,7 @@ def check_config_exists(dir: Path) -> None:
     if not corpus_config_exists(dir):
         print(f"No config file ({paths.config_file}) found in working directory ({dir}).")
         sys.exit(1)
-    
+
 
 def corpus_config_exists(dir: Path) -> bool:
     """Check that a corpus config file is available in the working dir"""
@@ -134,7 +135,7 @@ def set_app_context(
         "corpus_dir": dir or Path.cwd(),
     }
 
-    
+
 def main():
     """Run Sparv Pipeline (main entry point for Sparv)."""
 
@@ -195,28 +196,73 @@ def run(
     show_debug: bool = typer.Option(False, "--debug", help="Show debug messages"),
     socket: Optional[Path] = typer.Option(None, "--socket", help="Path to socket file created by the 'preload' command"),
     force_preloader: bool = typer.Option(False, "--force-preloader", help="Try to wait for preloader when it's busy"),
-    show_simple: bool = typer.Option(False, "--simple", help="Show less details while running"),
+    show_simple_progress: bool = typer.Option(False, "--simple", help="Show less details while running"),
     unlock_work_dir: bool = typer.Option(False, "--unlock", help="Unlock the working directory"),
     mark_complete: list[Path] = typer.Option(None, "--mark-complete", metavar="FILE", help="Mark output files as complete"),
     rerun_incomplete: bool = typer.Option(False, "--rerun-incomplete", help="Rerun incomplete output files"),
 ):
     """Annotate a corpus and generate export files."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
     config, snakemake_args = create_config_and_snakemake_args(
         command=ctx.command.name,
         dir=ctx.obj["corpus_dir"],
+        dry_run=dry_run,
         cores=num_cores,
+        keep_going=keep_going,
+        unlock=unlock_work_dir,
+        mark_complete=mark_complete,
+        rerun_incomplete=rerun_incomplete,
+        log=log_level,
+        log_to_file=file_log_level,
+        simple=show_simple_progress,
+        debug=show_debug,
+        files=files,
+        force_preloader=force_preloader,
+        output=output,
+        arg_list=show_output_format,
     )
 
-    run_cfg = RunCfg()
-    assert config == run_cfg.dict()
-    
-    run_args = RunArgs(
-        workdir=ctx.obj["corpus_dir"]
+
+    if show_output_format:
+        run_args = RunListArgs(
+            workdir=ctx.obj["corpus_dir"],
+            dryrun=dry_run,
+            cores=num_cores,
+            keepgoing=keep_going,
+        )
+    elif output:
+        run_args = RunExportCorpusArgs(
+            workdir=ctx.obj["corpus_dir"],
+            dryrun=dry_run,
+            cores=num_cores,
+            keepgoing=keep_going,
+            targets=output,
+        )
+    else:
+        run_args = RunExportCorpusArgs(
+            workdir=ctx.obj["corpus_dir"],
+            dryrun=dry_run,
+            cores=num_cores,
+            keepgoing=keep_going,
+        )
+    run_cfg = RunCfg(
+        threads=num_cores,
+        debug=show_debug,
+        file=files,
+        log_level=log_level,
+        log_file_level=file_log_level,
+        socket=socket,
+        force_preloader=force_preloader,
+        targets=run_args.targets,
     )
-    assert snakemake_args == run_args.dict()
+    config_run = run_cfg.dict()
+    assert config == config_run
+
+
+    snakemake_args_run = run_args.serialize()
+    assert snakemake_args == snakemake_args_run
 
 
 @app.command(rich_help_panel="Annotating a corpus")
@@ -236,7 +282,7 @@ def install(
     show_simple: bool = typer.Option(False, "--simple", help="Show less details while running"),
 ):
     """Install a corpus."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
 
@@ -258,7 +304,7 @@ def uninstall(
     show_simple: bool = typer.Option(False, "--simple", help="Show less details while running"),
 ):
     """Uninstall a corpus."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
 
@@ -271,22 +317,22 @@ def clean(
     remove_all: bool = typer.Option(False, "-a", "--all", help="Remove workdir, export and logs directories"),
 ):
     """Remove output directories (by default only the sparv-workdir directory)."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
 
 
 # Inspect
-@app.command(name="config", rich_help_panel="Inspecting corpus details")    
+@app.command(name="config", rich_help_panel="Inspecting corpus details")
 def display_config(
     ctx: typer.Context,
     options: list[str] = typer.Argument(None, help="Specific options(s) in config to display"),
 ):
     """Display the corpus configuration."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
-    
+
     config, snakemake_args = create_config_and_snakemake_args(
         command=ctx.command.name,
         dir=ctx.obj["corpus_dir"],
@@ -297,21 +343,21 @@ def display_config(
         options=options or None,
     )
     assert config == display_config_cfg.dict(exclude_none=True)
-    
+
     display_config_args = DisplayConfigArgs(
         workdir=ctx.obj["corpus_dir"]
     )
     assert snakemake_args == display_config_args.dict()
 
 
-@app.command(rich_help_panel="Inspecting corpus details:")    
+@app.command(rich_help_panel="Inspecting corpus details:")
 def files(
     ctx: typer.Context,
 ):
     """List available corpus source files (input for Sparv)
-    
+
     List available corpus source files that can be annotated by Sparv."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
     config, snakemake_args = create_config_and_snakemake_args(
@@ -321,7 +367,7 @@ def files(
 
     files_cfg = DefaultCfg()
     assert config == files_cfg.dict()
-    
+
     files_args = FilesArgs(
         workdir=ctx.obj["corpus_dir"]
     )
@@ -341,7 +387,7 @@ def modules(
     names: list[str] = typer.Argument(None, help="Specific module(s) to display"),
 ):
     """List available modules and annotations."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
 
@@ -358,7 +404,7 @@ def modules(
         types.append("uninstallers")
     if list_all:
         types.append("all")
-    
+
     config, snakemake_args = create_config_and_snakemake_args(
         command=ctx.command.name,
         dir=ctx.obj["corpus_dir"],
@@ -371,7 +417,7 @@ def modules(
         names=names,
     )
     assert config == modules_cfg.dict()
-    
+
     modules_args = ModulesArgs(
         workdir=ctx.obj["corpus_dir"]
     )
@@ -380,30 +426,30 @@ def modules(
 
 @app.command(rich_help_panel="Show annotation info")
 def presets(
-    
+
     ctx: typer.Context,
 ):
     """Display all available annotation presets."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
 
-    
+
 @app.command(rich_help_panel="Show annotation info")
 def classes(
-    
+
     ctx: typer.Context,
 ):
     """Display all available annotation classes."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
 
-    
+
 @app.command(rich_help_panel="Show annotation info")
 def languages():
     """List supported languages."""
-    
+
     check_sparv_is_set_up()
 
 
@@ -413,10 +459,10 @@ def setup(
     dir: Optional[Path] = typer.Option(None, "-d", "--dir", help="Directory to use as Sparv data directory", show_default="choosen interactively"),
     reset: bool = typer.Option(False, "--reset", help="Reset data directory setting."),
 ):
-    """Set up the Sparv data directory. 
-    
+    """Set up the Sparv data directory.
+
     Run without arguments for interactive setup."""
-    
+
     if reset:
         print("setup.reset()")
     else:
@@ -443,11 +489,11 @@ def build_models(
     show_simple: bool = typer.Option(False, "--simple", help="Show less details while running"),
 ):
     """Download and build the Sparv models (optional)
-    
-    Download and build the Sparv models. This is optional, as 
-    models will be downloaded and built automatically the first 
+
+    Download and build the Sparv models. This is optional, as
+    models will be downloaded and built automatically the first
     time they are needed."""
-    
+
     check_sparv_is_set_up()
 
     if not corpus_config_exists(ctx.obj["corpus_dir"]) and not language:
@@ -459,18 +505,18 @@ def build_models(
 @app.command(rich_help_panel="Setting up the Sparv Pipeline")
 def wizard():
     """Run config wizard to create a corpus config"""
-    
+
     from sparv.core.wizard import Wizard
-    
+
     check_sparv_is_set_up()
-    
+
     wizard = Wizard()
     print("wizard.run()")
     sys.exit(0)
 
 
 # Advanced commands
-        
+
 
 
 
@@ -483,11 +529,11 @@ def run_module(
 
     To pass flags to module use '--', e.g. `sparv run-module -- --flag`
     """
-    
+
     check_sparv_is_set_up()
     print(f"{log_level!r}")
     # from sparv.core import run
-    print(f"run.main({module_args}, log_level={log_level.value})")    
+    print(f"run.main({module_args}, log_level={log_level.value})")
     sys.exit()
 
 
@@ -512,7 +558,7 @@ def run_rule(
     show_simple: bool = typer.Option(False, "--simple", help="Show less details while running"),
 ):
     """Run specified rule(s) for creating annotations."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
     print(f"{wildcards=}")
@@ -535,10 +581,10 @@ def create_file(
     force_preloader: bool = typer.Option(False, "--force-preloader", help="Try to wait for preloader when it's busy"),
     show_simple: bool = typer.Option(False, "--simple", help="Show less details while running"),
 ):
-    """Create specified file(s). 
-    
+    """Create specified file(s).
+
     The full path must be supplied and wildcards must be replaced."""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
 
@@ -547,7 +593,7 @@ class StartStop(str, enum.Enum):
     Start = "start"
     Stop = "stop"
 
-    
+
 @app.command(rich_help_panel="Advanced commands")
 def preload(
     ctx: typer.Context,
@@ -557,7 +603,7 @@ def preload(
     list_preloads: bool = typer.Option(False, "-l", "--list", help="List annotators available for preloading"),
 ):
     """Preload annotators and models"""
-    
+
     check_sparv_is_set_up()
     check_config_exists(ctx.obj["corpus_dir"])
 
@@ -577,7 +623,7 @@ def preload(
     )
     config2 = preload_cfg.dict()
     assert config == config2
-    
+
     if list_preloads:
         preload_args = ListPreloadArgs(
             workdir=ctx.obj["corpus_dir"]
@@ -594,6 +640,9 @@ def preload(
 class DefaultCfg(pydantic.BaseModel):
     run_by_sparv: bool = True
 
+    def serialize(self):
+        return self.dict(by_alias=True)
+
 
 class DisplayConfigCfg(DefaultCfg):
     options: Optional[list[str]] = None
@@ -603,7 +652,7 @@ class ModulesCfg(DefaultCfg):
     types: list[str]
     names: list[str]
 
-    
+
 class PreloadCfg(DefaultCfg):
     preloader: bool = True
     socket: str
@@ -619,25 +668,42 @@ class PreloadCfg(DefaultCfg):
         return str(value.resolve())
 
 class RunCfg(DefaultCfg):
-    ...
-    
+    threads: int
+    debug: bool
+    file: list[Path]
+    log_level: LogLevel
+    log_file_level: LogLevel
+    socket: Optional[Path]
+    force_preloader: bool
+    targets: list[str] = None
+
+    @pydantic.validator("threads")
+    def parse_threads(cls, value):
+        if not isinstance(value, int):
+            raise TypeError("Expecting int")
+        try:
+            value = value or available_cpu_count()
+        except NotImplementedError:
+            value = 1
+        return value
+
 class SnakeMakeArgs(pydantic.BaseModel):
     workdir: Path
     force_use_threads: bool
-
+    targets: list[str]
 
 class SimpleTargetMixin(pydantic.BaseModel):
     force_use_threads: bool = True
 
-    
+
 class DisplayConfigArgs(SimpleTargetMixin, SnakeMakeArgs):
     targets: list[str] = pydantic.Field(default_factory=lambda: ["config"])
 
-    
+
 class FilesArgs(SimpleTargetMixin, SnakeMakeArgs):
     targets: list[str] = pydantic.Field(default_factory=lambda: ["files"])
 
-    
+
 class ModulesArgs(SimpleTargetMixin, SnakeMakeArgs):
     targets: list[str] = pydantic.Field(default_factory=lambda: ["modules"])
 
@@ -648,11 +714,46 @@ class PreloadArgs(SimpleTargetMixin, SnakeMakeArgs):
 
 class ListPreloadArgs(SimpleTargetMixin, SnakeMakeArgs):
     targets: list[str] = pydantic.Field(default_factory=lambda: ["preload_list"])
-    
+
 
 class RunArgs(SnakeMakeArgs):
-    ...
-    
+    force_use_threads: bool = False
+    dryrun: bool
+    cores: int
+    keepgoing: bool
+    resources: dict[str, int]
+
+    @pydantic.root_validator(pre=True)
+    def parse_threads(cls, values):
+        if "cores" not in values:
+            raise ValueError("'cores' is missing")
+        num_cores = values["cores"] or available_cpu_count()
+        values["cores"] = num_cores
+
+        if "resources" in values:
+            if not isinstance(values["resources"], dict):
+                raise TypeError("expecting a dict for resources")
+            values["resources"]["threads"] = num_cores
+        else:
+            values["resources"] = {
+                "threads": num_cores
+            }
+
+        return values
+
+    def serialize(self):
+        return self.dict()
+
+
+class RunExportCorpusArgs(RunArgs):
+    targets: list[str] = pydantic.Field(default_factory=lambda: ["export_corpus"])
+
+    def serialize(self):
+        return self.dict(exclude={"force_use_threads"})
+
+class RunListArgs(SimpleTargetMixin, RunArgs):
+    targets: list[str] = pydantic.Field(default_factory=lambda: ["list_exports"])
+
 
 def create_config_and_snakemake_args(
     command: str,
@@ -664,19 +765,31 @@ def create_config_and_snakemake_args(
     names: list[str] = None,
     types: list[str] = None,
     options: list[str] = None,
+    dry_run: bool = False,
     cores: int = None,
+    keep_going: bool = False,
+    unlock: bool = False,
+    mark_complete: list[Path] = None,
+    rerun_incomplete: bool = False,
+    log: str = None,
+    log_to_file: str = None,
+    simple: bool = False,
+    debug: bool = False,
+    files: list[Path] = None,
+    force_preloader: bool = False,
+    output: list[str] = None,
 ):
     print(f"{command=}")
-    snakemake_args = {"workdir": dir}
+    snakemake_args: dict[str, Union[str,bool,int,Path,list[str]]] = {"workdir": dir}
     config = {"run_by_sparv": True}
     simple_target = False
-    log_level = ""
-    log_file_level = ""
-    simple_mode = False
-    stats = False
+    # log_level = ""
+    # log_file_level = ""
+    # simple_mode = False
+    # stats = False
     pass_through = False
-    dry_run = False
-    keep_going = False
+    # dry_run = False
+    # keep_going = False
 
 
     if command in ("modules", "config", "files", "clean", "presets", "classes", "languages", "preload"):
@@ -701,13 +814,13 @@ def create_config_and_snakemake_args(
                 snakemake_args["targets"] = ["preload_list"]
 
         # return config, snakemake_args
-    
+
     elif command in ("run", "run-rule", "create-file", "install", "uninstall", "build-models"):
         try:
             cores = cores or available_cpu_count()
         except NotImplementedError:
             cores = 1
-        snakemake_update({
+        snakemake_args.update({
             "dryrun": dry_run,
             "cores": cores,
             "keepgoing": keep_going,
@@ -717,9 +830,9 @@ def create_config_and_snakemake_args(
         if arg_list or dry_run:
             simple_target = True
 
-        stats = stats
-        dry_run = dry_run
-        keep_going = keep_going
+        # stats = stats
+        # dry_run = dry_run
+        # keep_going = keep_going
 
         # Command: run
         if command == "run":
@@ -733,7 +846,7 @@ def create_config_and_snakemake_args(
                 pass_through = True
             elif rerun_incomplete:
                 snakemake_args["force_incomplete"] = True
-            if list:
+            if arg_list:
                 snakemake_args["targets"] = ["list_exports"]
             elif output:
                 snakemake_args["targets"] = output
@@ -797,7 +910,7 @@ def create_config_and_snakemake_args(
             socket = str(socket_path)
 
         config.update({"debug": debug,
-                       "file": vars(args).get("file", []),
+                       "file": files,
                        "log_level": log_level,
                        "log_file_level": log_file_level,
                        "socket": socket,
@@ -811,7 +924,7 @@ def create_config_and_snakemake_args(
 
     return config, snakemake_args
 
-    
+
 def main_cont():
     # Add common arguments
     for subparser in [run_parser, runrule_parser, createfile_parser, models_parser, install_parser, uninstall_parser]:

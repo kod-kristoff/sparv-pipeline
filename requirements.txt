@@ -1,0 +1,5 @@
+questionary
+pyyaml
+iso639
+typing_inspect
+snakemake
